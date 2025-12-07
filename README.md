@@ -6,7 +6,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 - **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast.
 - **High-Performance C Core**: Core logic written in C and compiled to WebAssembly for near-native performance in the browser and on the edge.
 - **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load.
-- **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves.
+- **Journey Routes**: Single or multi-anchor (2���5) color paths with designed non-linear pacing and easing curves.
 - **Perceptual Dynamics**: High-level controls for lightness bias, chroma multiplier, contrast enforcement (minimum OKLab ΔE), and more.
 - **Granularity Modes**: Continuous gradients or discrete quantized palettes with patterned reuse for large sets.
 - **Seeded Variation Layer**: Optional subtle, structured perturbations for an organic feel, with deterministic outputs via a seed.
@@ -57,6 +57,14 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     bunx wrangler dev
     ```
     The edge API will be at `http://localhost:8787/api/color-journey`.
+## Usage Notes
+- **WASM Build**: Run `./build-wasm.sh` after emsdk activation; files go to `public/assets`. Vite serves from there. If the WASM build is missing or fails to load, the app gracefully falls back to the TypeScript engine with full functionality.
+- **API**: `POST /api/color-journey` with a JSON config body. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP.
+- **Pages**: The application is split into three main pages:
+    - `/`: The main interactive Playground.
+    - `/presets`: A page to save, load, and manage custom presets in `localStorage`.
+    - `/docs`: Documentation for the server-side API.
+- **Presets**: Presets are stored in your browser's `localStorage`. You can export them as JSON to share or back them up.
 ## Building the C Core (WebAssembly)
 The portable C implementation handles all core logic. Sources are in `/src/wasm/`.
 ### Build Script (`build-wasm.sh`)
@@ -72,31 +80,16 @@ then
 fi
 echo "Building Color Journey WASM module..."
 emcc src/wasm/oklab.c src/wasm/color_journey.c \
-  -o public/assets/color_journey.js \
+  -o public/assets/color_journey.wasm \
   -s WASM=1 \
-  -s MODULARIZE=1 \
-  -s EXPORT_ES6=1 \
-  -s USE_ES6_IMPORT_META=0 \
-  -s EXPORTED_RUNTIME_METHODS='["cwrap"]' \
+  -s STANDALONE_WASM \
   -s EXPORTED_FUNCTIONS='["_generate_discrete_palette", "_wasm_malloc", "_wasm_free"]' \
-  -s ALLOW_MEMORY_GROWTH=1 \
+  -s EXPORTED_RUNTIME_METHODS='["cwrap"]' \
   -O3
-echo "✅ Build complete. Output files are in public/assets/"
+echo "✅ Build complete. Output file is in public/assets/"
 ```
 ### Manual Compilation
-You can also run the `emcc` command directly:
-```bash
-emcc src/wasm/oklab.c src/wasm/color_journey.c \
-  -o public/assets/color_journey.js \
-  -s WASM=1 \
-  -s MODULARIZE=1 \
-  -s EXPORT_ES6=1 \
-  -s USE_ES6_IMPORT_META=0 \
-  -s EXPORTED_RUNTIME_METHODS='["cwrap"]' \
-  -s EXPORTED_FUNCTIONS='["_generate_discrete_palette", "_wasm_malloc", "_wasm_free"]' \
-  -s ALLOW_MEMORY_GROWTH=1 \
-  -O3
-```
+You can also run the `emcc` command directly. The `-s STANDALONE_WASM` flag is important to produce a clean `.wasm` file without JS glue code.
 ## Deployment
 Deploy to Cloudflare Workers for an edge-hosted playground and API.
 1.  Build the WASM module:

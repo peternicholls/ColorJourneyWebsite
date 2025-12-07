@@ -1,34 +1,38 @@
 import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '@/types/color-journey';
 // --- WASM Loader and State ---
-let wasmModule: any = null;
+let wasmModule: WebAssembly.Instance | null = null;
 let wasmApi: {
   generate: (configPtr: number, anchorsPtr: number) => number;
   malloc: (size: number) => number;
   free: (ptr: number) => void;
+  memory: WebAssembly.Memory;
 } | null = null;
 async function initWasm() {
   if (wasmModule) return;
   try {
-    // This is a dynamic import, which Vite handles by default.
-    // The file needs to be in the `public` directory.
-    const moduleFactory = await import('/assets/color_journey.js');
-    const Module = await moduleFactory.default();
-    wasmModule = Module;
+    // Fetch and instantiate the WASM module directly.
+    // This avoids Vite's dynamic import resolution issues with Emscripten's JS glue.
+    // The .wasm file must be in the `public` directory.
+    const response = await fetch('/assets/color_journey.wasm');
+    const module = await WebAssembly.instantiateStreaming(response, {});
+    wasmModule = module.instance;
+    const exports = wasmModule.exports;
     wasmApi = {
-      generate: Module.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
-      malloc: Module._malloc,
-      free: Module._free,
+      generate: exports.generate_discrete_palette as (configPtr: number, anchorsPtr: number) => number,
+      malloc: exports.wasm_malloc as (size: number) => number,
+      free: exports.wasm_free as (ptr: number) => void,
+      memory: exports.memory as WebAssembly.Memory,
     };
     console.log("✅ Color Journey WASM module loaded successfully.");
   } catch (e) {
     console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
-    wasmModule = 'failed'; // Mark as failed to prevent retries
+    wasmModule = null; // Ensure it's marked as failed
+    wasmApi = null;
   }
 }
 // Eagerly start loading the WASM module
 initWasm();
 // --- TypeScript Fallback Implementation ---
-// (This code is identical to Phase 1 and is used if WASM fails)
 const M1 = [
   [0.4122214708, 0.5363325363, 0.0514459929],
   [0.2119034982, 0.6806995451, 0.1073969566],
@@ -82,7 +86,7 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
   const { anchors, numColors, loop, dynamics, variation } = config;
   const palette: ColorPoint[] = [];
   if (anchors.length === 0) return { palette, config, diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0 } };
-  const okAnchors = anchors.map(hex => srgbToOklab(hexToRgb(hex)));
+  const okAnchors = anchors.map((hex: string) => srgbToOklab(hexToRgb(hex)));
   const rng = new SeededRNG(variation.seed);
   for (let i = 0; i < numColors; i++) {
     let t = numColors > 1 ? i / (numColors - 1) : 0.5;
@@ -125,40 +129,36 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
 // --- WASM Implementation ---
 async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
   if (!wasmApi) throw new Error("WASM API not initialized");
-  const okAnchors = config.anchors.map(hex => srgbToOklab(hexToRgb(hex)));
-  // Config struct size: 6 doubles, 4 ints = 6*8 + 4*4 = 48 + 16 = 64 bytes
-  const configPtr = wasmApi.malloc(64);
-  // Anchors array size: num_anchors * 3 doubles = num_anchors * 24 bytes
+  const okAnchors = config.anchors.map((hex: string) => srgbToOklab(hexToRgb(hex)));
+  const configSize = 96;
+  const configPtr = wasmApi.malloc(configSize);
   const anchorsPtr = wasmApi.malloc(okAnchors.length * 24);
   try {
-    const loopModeMap = { 'open': 0, 'closed': 1, 'ping-pong': 2 };
-    const variationModeMap = { 'off': 0, 'subtle': 1, 'noticeable': 2 };
-    // Write config to WASM memory
-    const configView = new DataView(wasmModule.HEAPU8.buffer, configPtr, 64);
+    const loopModeMap: { [key in typeof config.loop]: number } = { 'open': 0, 'closed': 1, 'ping-pong': 2 };
+    const variationModeMap: { [key in typeof config.variation.mode]: number } = { 'off': 0, 'subtle': 1, 'noticeable': 2 };
+    const configView = new DataView(wasmApi.memory.buffer, configPtr, configSize);
     configView.setFloat64(0, config.dynamics.lightness, true);
     configView.setFloat64(8, config.dynamics.chroma, true);
     configView.setFloat64(16, config.dynamics.contrast, true);
-    configView.setUint32(24, config.variation.seed, true);
-    configView.setInt32(28, config.numColors, true);
-    configView.setInt32(32, okAnchors.length, true);
-    configView.setInt32(36, loopModeMap[config.loop], true);
-    configView.setInt32(40, variationModeMap[config.variation.mode], true);
-    // Write anchors to WASM memory
-    const anchorsView = new Float64Array(wasmModule.HEAPU8.buffer, anchorsPtr, okAnchors.length * 3);
-    okAnchors.forEach((anchor, i) => {
-      anchorsView[i * 3] = anchor.l;
-      anchorsView[i * 3 + 1] = anchor.a;
-      anchorsView[i * 3 + 2] = anchor.b;
+    configView.setFloat64(24, config.dynamics.vibrancy, true); // Added
+    configView.setFloat64(32, config.dynamics.warmth, true);   // Added
+    configView.setUint32(40, config.variation.seed, true);
+    configView.setInt32(44, config.numColors, true);
+    configView.setInt32(48, okAnchors.length, true);
+    configView.setInt32(52, loopModeMap[config.loop], true);
+    configView.setInt32(56, variationModeMap[config.variation.mode], true);
+    const anchorsView = new Float64Array(wasmApi.memory.buffer, anchorsPtr, okAnchors.length * 3);
+    okAnchors.forEach((anchor: OKLabColor, i: number) => {
+      anchorsView.set([anchor.l, anchor.a, anchor.b], i * 3);
     });
     const resultPtr = wasmApi.generate(configPtr, anchorsPtr);
     if (resultPtr === 0) throw new Error("WASM palette generation failed");
     const palette: ColorPoint[] = [];
-    // Each color point is 3 doubles (oklab) + 3 bytes (rgb) = 24 + 3 = 27, padded to 32 bytes
-    const colorPointSize = 32; 
+    const colorPointSize = 32;
     for (let i = 0; i < config.numColors; i++) {
         const colorPtr = resultPtr + i * colorPointSize;
-        const okView = new Float64Array(wasmModule.HEAPU8.buffer, colorPtr, 3);
-        const rgbView = new Uint8Array(wasmModule.HEAPU8.buffer, colorPtr + 24, 3);
+        const okView = new Float64Array(wasmApi.memory.buffer, colorPtr, 3);
+        const rgbView = new Uint8Array(wasmApi.memory.buffer, colorPtr + 24, 3);
         const ok: OKLabColor = { l: okView[0], a: okView[1], b: okView[2] };
         const rgb: RGBColor = { r: rgbView[0] / 255, g: rgbView[1] / 255, b: rgbView[2] / 255 };
         palette.push({ ok, rgb, hex: rgbToHex(rgb) });
@@ -188,7 +188,6 @@ export const ColorJourneyEngine = {
         return generatePaletteTS(config);
       }
     }
-    // If WASM is still loading or failed, use TS fallback
     return generatePaletteTS(config);
   },
   isWasmReady: () => !!wasmApi,

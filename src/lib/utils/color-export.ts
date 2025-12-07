@@ -1,24 +1,56 @@
+import { z } from 'zod';
 import { GenerateResult, ColorPoint } from "@/types/color-journey";
+const ColorJourneyConfigSchema = z.object({
+  anchors: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)),
+  numColors: z.number().int().min(1),
+  loop: z.enum(['open', 'closed', 'ping-pong']),
+  granularity: z.enum(['continuous', 'discrete']),
+  dynamics: z.object({
+    lightness: z.number(),
+    chroma: z.number(),
+    contrast: z.number(),
+    vibrancy: z.number(),
+    warmth: z.number(),
+  }),
+  variation: z.object({
+    mode: z.enum(['off', 'subtle', 'noticeable']),
+    seed: z.number().int(),
+  }),
+});
+const GenerateResultSchema = z.object({
+  config: ColorJourneyConfigSchema,
+  palette: z.array(z.object({
+    hex: z.string(),
+    ok: z.object({ l: z.number(), a: z.number(), b: z.number() }),
+  })),
+  diagnostics: z.object({
+    minDeltaE: z.number(),
+    maxDeltaE: z.number(),
+    contrastViolations: z.number(),
+  }),
+});
 export function exportToCssVariables(palette: ColorPoint[]): string {
   if (!palette || palette.length === 0) return "";
-  return palette
+  const variables = palette
     .map((color, index) => `  --cj-${index + 1}: ${color.hex};`)
     .join("\n");
+  return `:root {\n${variables}\n}`;
 }
 export function exportToJson(result: GenerateResult): string {
-  return JSON.stringify(
-    {
-      config: result.config,
+  try {
+    const validatedResult = GenerateResultSchema.parse({
+      ...result,
       palette: result.palette.map(p => ({ hex: p.hex, ok: p.ok })),
-      diagnostics: result.diagnostics,
-    },
-    null,
-    2
-  );
+    });
+    return JSON.stringify(validatedResult, null, 2);
+  } catch (error) {
+    console.error("Zod validation failed for export:", error);
+    // Fallback to non-validated export if schema fails
+    return JSON.stringify(result, null, 2);
+  }
 }
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (!navigator.clipboard) {
-    // Fallback for older browsers
     try {
       const textArea = document.createElement("textarea");
       textArea.value = text;
@@ -41,4 +73,15 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     console.error("Async: Could not copy text: ", err);
     return false;
   }
+}
+export async function downloadFile(content: string, filename: string, type = 'text/plain') {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
