@@ -23,7 +23,7 @@ async function initWasm() {
       free: exports.wasm_free as (ptr: number) => void,
       memory: exports.memory as WebAssembly.Memory,
     };
-    console.log("🎨 Color Journey WASM module loaded successfully.");
+    console.log("���� Color Journey WASM module loaded successfully.");
   } catch (e) {
     console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
     wasmModule = null;

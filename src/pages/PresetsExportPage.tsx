@@ -119,7 +119,7 @@ export function PresetsExportPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
           <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-blue-500 to-teal-500">Presets & Export</h2>
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">Presets & Export</h2>
             <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
               Save, share, and export your favorite color journey configurations.
             </p>

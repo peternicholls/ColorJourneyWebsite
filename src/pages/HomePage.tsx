@@ -94,7 +94,7 @@ export function HomePage() {
                 transition={{ duration: 0.6, ease: 'easeOut' }}
                 className="text-4xl md:text-5xl font-display font-bold text-balance leading-tight"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-blue-500 to-teal-500">
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">
                   OKLab Palette Engine
                 </span>
               </motion.h2>
@@ -108,9 +108,14 @@ export function HomePage() {
               </motion.p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
-              <div className="md:col-span-1">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2 }}
+                className="md:col-span-1"
+              >
                 <ColorJourneyControls config={config} onConfigChange={setConfig} isLoadingWasm={isLoadingWasm} />
-              </div>
+              </motion.div>
               <div className="md:col-span-2">
                 <PaletteViewer result={result} isLoading={isLoading || isLoadingWasm} />
               </div>
