@@ -50,6 +50,8 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
     }
     return ratios;
   }, [result]);
+  const minRatio = contrastRatios.length > 0 ? Math.min(...contrastRatios) : 0;
+  const minRatioDisplay = contrastRatios.length > 0 ? minRatio.toFixed(2) : 'N/A';
   return (
     <div className="space-y-8">
       <Card>
@@ -126,11 +128,11 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
               </TableRow>
               <TableRow>
                 <TableCell>Min. Contrast Ratio (WCAG)</TableCell>
-                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : Math.min(...contrastRatios).toFixed(2) ?? 'N/A'}</TableCell>
+                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : minRatioDisplay}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell>Adjacent Contrast Check</TableCell>
-                <TableCell className="text-right">{isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (Math.min(...contrastRatios) >= 4.5 ? <span className="flex items-center justify-end gap-2 text-green-600"><Check className="h-4 w-4" /> All Pass (AA)</span> : <span className="flex items-center justify-end gap-2 text-amber-600"><AlertTriangle className="h-4 w-4" /> Some Fail</span>)}</TableCell>
+                <TableCell className="text-right">{isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (contrastRatios.length > 0 && minRatio >= 4.5 ? <span className="flex items-center justify-end gap-2 text-green-600"><Check className="h-4 w-4" /> All Pass (AA)</span> : <span className="flex items-center justify-end gap-2 text-amber-600"><AlertTriangle className="h-4 w-4" /> Some Fail</span>)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>

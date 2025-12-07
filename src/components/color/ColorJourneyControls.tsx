@@ -19,6 +19,7 @@ const PRESETS = {
   "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12 },
 };
 export function ColorJourneyControls({ config, onConfigChange }: ColorJourneyControlsProps) {
+  const [selectedPreset, setSelectedPreset] = useState('');
   const handleValueChange = (key: keyof ColorJourneyConfig, value: any) => {
     onConfigChange({ ...config, [key]: value });
   };
@@ -60,7 +61,14 @@ export function ColorJourneyControls({ config, onConfigChange }: ColorJourneyCon
       <CardContent className="space-y-6">
         <div className="space-y-2">
           <Label>Presets</Label>
-          <Select onValueChange={(val) => applyPreset(val as keyof typeof PRESETS)}>
+          <Select
+            value={selectedPreset}
+            onValueChange={(val) => {
+              const presetKey = val as keyof typeof PRESETS;
+              applyPreset(presetKey);
+              setSelectedPreset(val);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Load a preset..." />
             </SelectTrigger>
