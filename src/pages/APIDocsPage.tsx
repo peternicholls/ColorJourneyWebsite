@@ -17,7 +17,7 @@ const CodeBlock = ({ code, language }: { code: string; language: string }) => {
   };
   return (
     <div className="relative group">
-      <pre className={`bg-muted p-4 rounded-lg overflow-x-auto text-sm text-muted-foreground font-mono`}>
+      <pre className={`bg-muted p-4 rounded-lg overflow-x-auto text-sm text-muted-foreground font-mono transition-transform group-hover:scale-[1.02]`}>
         <code className={`language-${language}`}>{code}</code>
       </pre>
       <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={handleCopy}>

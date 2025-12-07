@@ -76,7 +76,7 @@ export function PaletteViewer({ result, isLoading, show3D, onToggle3D }: Palette
             <Tooltip>
               <TooltipTrigger asChild>
                 <div className="flex items-center space-x-2">
-                  <Switch id="3d-view" checked={show3D} onCheckedChange={onToggle3D} />
+                  <Switch id="3d-view" checked={show3D} onCheckedChange={onToggle3D} className="transition-transform data-[state=checked]:hover:scale-105" />
                   <Label htmlFor="3d-view"><Orbit className="h-5 w-5" /></Label>
                 </div>
               </TooltipTrigger>
@@ -119,8 +119,9 @@ export function PaletteViewer({ result, isLoading, show3D, onToggle3D }: Palette
                     <motion.div
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
+                      whileHover={{ scale: 1.05, y: -4, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
                       transition={{ duration: 0.3, delay: index * 0.02 }}
-                      className="w-full aspect-square rounded-md cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1"
+                      className="w-full aspect-square rounded-md cursor-pointer"
                       style={{ backgroundColor: color.hex }}
                       onClick={() => handleCopy(color.hex, 'Hex code')}
                     />

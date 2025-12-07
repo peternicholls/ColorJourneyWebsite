@@ -128,15 +128,15 @@ export function HomePage() {
               >
                 <ColorJourneyControls config={config} onConfigChange={setConfig} isLoadingWasm={isLoadingWasm} />
               </motion.div>
-              <motion.div 
+              <motion.div
                 className="md:col-span-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
+                transition={{ delay: config.ui?.show3D ? 0.4 : 0.2 }}
               >
-                <PaletteViewer 
-                  result={result} 
-                  isLoading={isLoading || isLoadingWasm} 
+                <PaletteViewer
+                  result={result}
+                  isLoading={isLoading || isLoadingWasm}
                   show3D={config.ui?.show3D || false}
                   onToggle3D={handleToggle3D}
                 />

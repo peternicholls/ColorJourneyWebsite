@@ -74,6 +74,7 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
     }
   };
   const applyBias = (biasName: BiasPreset) => {
+    const bias = BIAS_MAP[biasName];
     handleMultipleDynamicsChange({ ...bias, biasPreset: biasName });
   };
   const handleCurveStyleChange = (style: CurveStyle) => {
