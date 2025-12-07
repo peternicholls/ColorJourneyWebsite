@@ -1,4 +1,4 @@
-import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '@/types/color-journey.ts';
+import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '@/types/color-journey';
 // --- WASM Loader and State ---
 let wasmModule: WebAssembly.Instance | null = null;
 let wasmApi: {
@@ -7,8 +7,8 @@ let wasmApi: {
   free: (ptr: number) => void;
   memory: WebAssembly.Memory;
 } | null = null;
+let isLoadingWasm = true;
 async function initWasm() {
-  if (wasmModule) return;
   try {
     const response = await fetch('/assets/color_journey.wasm');
     const module = await WebAssembly.instantiateStreaming(response, {});
@@ -20,11 +20,13 @@ async function initWasm() {
       free: exports.wasm_free as (ptr: number) => void,
       memory: exports.memory as WebAssembly.Memory,
     };
-    console.log("��� Color Journey WASM module loaded successfully.");
+    console.log("🎨 Color Journey WASM module loaded successfully.");
   } catch (e) {
     console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
     wasmModule = null;
     wasmApi = null;
+  } finally {
+    isLoadingWasm = false;
   }
 }
 initWasm();
@@ -114,7 +116,10 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
       finalChroma *= (1 + dynamics.vibrancy * 0.2 * (1 - Math.abs(t - 0.5) / 0.2));
     }
     currentOK.a = Math.cos(hue) * finalChroma; currentOK.b = Math.sin(hue) * finalChroma;
-    if (numColors > 20 && okAnchors.length > 1) {
+    if (numColors > 50) {
+        currentOK.l += Math.sin(i * (variation.seed % 100) / 100) * 0.03;
+        currentOK.l = Math.max(0, Math.min(1, currentOK.l));
+    } else if (numColors > 20 && okAnchors.length > 1) {
       const cycle = Math.floor(i / okAnchors.length);
       currentOK.l += (cycle % 2 === 0 ? 1 : -1) * 0.02;
     }
@@ -139,7 +144,7 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     }
   }
   palette.forEach(p => { p.rgb = oklabToSrgb(p.ok); p.hex = rgbToHex(p.rgb); });
-  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0 };
+  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false };
   const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
   for (let i = 0; i < palette.length; i++) {
     if (i > 0) {
@@ -154,66 +159,17 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     diagnostics.wcagMinRatio = Math.min(diagnostics.wcagMinRatio, betterRatio);
     if (betterRatio < 4.5) diagnostics.wcagViolations++;
   }
-  return { palette, config, diagnostics };
-}
-async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
-  if (!wasmApi) throw new Error("WASM API not initialized");
-  const okAnchors = config.anchors.map((hex: string) => srgbToOklab(hexToRgb(hex)));
-  const configSize = 96;
-  const configPtr = wasmApi.malloc(configSize);
-  const anchorsPtr = wasmApi.malloc(okAnchors.length * 24);
-  try {
-    const loopModeMap: { [key in typeof config.loop]: number } = { 'open': 0, 'closed': 1, 'ping-pong': 2 };
-    const variationModeMap: { [key in typeof config.variation.mode]: number } = { 'off': 0, 'subtle': 1, 'noticeable': 2 };
-    const configView = new DataView(wasmApi.memory.buffer, configPtr, configSize);
-    configView.setFloat64(0, config.dynamics.lightness, true);
-    configView.setFloat64(8, config.dynamics.chroma, true);
-    configView.setFloat64(16, config.dynamics.contrast, true);
-    configView.setFloat64(24, config.dynamics.vibrancy, true);
-    configView.setFloat64(32, config.dynamics.warmth, true);
-    const bl = config.dynamics.bezierLight || [0.5, 0.5, 0.5, 0.5];
-    const bc = config.dynamics.bezierChroma || [0.5, 0.5, 0.5, 0.5];
-    configView.setFloat64(40, bl[0], true); configView.setFloat64(48, bl[1], true);
-    configView.setFloat64(56, bc[0], true); configView.setFloat64(64, bc[1], true);
-    configView.setUint32(72, config.variation.seed, true);
-    configView.setInt32(76, config.numColors, true);
-    configView.setInt32(80, okAnchors.length, true);
-    configView.setInt32(84, loopModeMap[config.loop], true);
-    configView.setInt32(88, variationModeMap[config.variation.mode], true);
-    const anchorsView = new Float64Array(wasmApi.memory.buffer, anchorsPtr, okAnchors.length * 3);
-    okAnchors.forEach((anchor: OKLabColor, i: number) => anchorsView.set([anchor.l, anchor.a, anchor.b], i * 3));
-    const resultPtr = wasmApi.generate(configPtr, anchorsPtr);
-    if (resultPtr === 0) throw new Error("WASM palette generation failed");
-    const palette: ColorPoint[] = [];
-    const colorPointSize = 24; // oklab (3*8)
-    for (let i = 0; i < config.numColors; i++) {
-        const colorPtr = resultPtr + i * colorPointSize;
-        const okView = new Float64Array(wasmApi.memory.buffer, colorPtr, 3);
-        const ok: OKLabColor = { l: okView[0], a: okView[1], b: okView[2] };
-        const rgb = oklabToSrgb(ok);
-        palette.push({ ok, rgb, hex: rgbToHex(rgb) });
-    }
-    wasmApi.free(resultPtr);
-    const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0 };
-    // Diagnostics are calculated client-side for consistency
-    return { palette, config, diagnostics };
-  } finally {
-    wasmApi.free(configPtr);
-    wasmApi.free(anchorsPtr);
+  if (diagnostics.wcagMinRatio >= 7) {
+    diagnostics.aaaCompliant = true;
   }
+  return { palette, config, diagnostics };
 }
 export const ColorJourneyEngine = {
   generate: async (config: ColorJourneyConfig): Promise<GenerateResult> => {
     // For Phase 1, always use TS. WASM path is for Phase 2.
-    // if (wasmApi) {
-    //   try {
-    //     return await generatePaletteWasm(config);
-    //   } catch (e) {
-    //     console.error("WASM execution failed, falling back to TS.", e);
-    //     return generatePaletteTS(config);
-    //   }
-    // }
+    // In a real Phase 2, we would use the wasmApi if available.
     return generatePaletteTS(config);
   },
   isWasmReady: () => !!wasmApi,
+  isLoadingWasm: () => isLoadingWasm,
 };

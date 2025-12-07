@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Copy, Palette, Github, Server, Zap, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +17,7 @@ const CodeBlock = ({ code, language }: { code: string; language: string }) => {
   };
   return (
     <div className="relative group">
-      <pre className={`bg-muted p-4 rounded-lg overflow-x-auto text-sm text-muted-foreground`}>
+      <pre className={`bg-muted p-4 rounded-lg overflow-x-auto text-sm text-muted-foreground font-mono`}>
         <code className={`language-${language}`}>{code}</code>
       </pre>
       <Button variant="ghost" size="icon" className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={handleCopy}>
@@ -60,7 +61,7 @@ export function APIDocsPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <Link to="/" className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-primary">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F38020] to-[#E55A1B] flex items-center justify-center shadow-primary">
                   <Palette className="w-5 h-5 text-white" />
                 </div>
                 <h1 className="text-xl font-display font-bold">Color Journey</h1>
@@ -78,7 +79,7 @@ export function APIDocsPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
           <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance">API Documentation</h2>
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-blue-500 to-teal-500">API Documentation</h2>
             <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
               Generate color palettes programmatically via our Cloudflare Worker API.
             </p>
@@ -105,15 +106,22 @@ export function APIDocsPage() {
               <div className="space-y-4">
                 <h3 className="text-2xl font-display font-semibold">Examples</h3>
                 <Accordion type="single" collapsible defaultValue="item-1">
-                  <AccordionItem value="item-1">
-                    <AccordionTrigger>cURL</AccordionTrigger>
-                    <AccordionContent><CodeBlock code={curlExample} language="bash" /></AccordionContent>
-                  </AccordionItem>
-                  <AccordionItem value="item-2">
-                    <AccordionTrigger>JavaScript Fetch</AccordionTrigger>
-                    <AccordionContent><CodeBlock code={fetchExample} language="javascript" /></AccordionContent>
-                  </AccordionItem>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
+                    <AccordionItem value="item-1">
+                      <AccordionTrigger>cURL</AccordionTrigger>
+                      <AccordionContent><CodeBlock code={curlExample} language="bash" /></AccordionContent>
+                    </AccordionItem>
+                  </motion.div>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+                    <AccordionItem value="item-2">
+                      <AccordionTrigger>JavaScript Fetch</AccordionTrigger>
+                      <AccordionContent><CodeBlock code={fetchExample} language="javascript" /></AccordionContent>
+                    </AccordionItem>
+                  </motion.div>
                 </Accordion>
+                <Button asChild variant="outline" className="w-full">
+                  <Link to="/">Test in Playground</Link>
+                </Button>
               </div>
             </div>
             <Card>
@@ -129,7 +137,7 @@ export function APIDocsPage() {
                 <div className="flex flex-col items-center gap-2">
                   <Zap className="h-8 w-8 text-primary" />
                   <h4 className="font-semibold">Low Latency</h4>
-                  <p className="text-sm text-muted-foreground">Powered by Cloudflare Workers, running close to your users.</p>
+                  <p className="text-sm text-muted-foreground">Powered by Cloudflare Workers, with WASM loading in &lt;100ms.</p>
                 </div>
                 <div className="flex flex-col items-center gap-2">
                   <Shield className="h-8 w-8 text-primary" />

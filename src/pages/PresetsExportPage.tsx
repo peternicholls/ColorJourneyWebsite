@@ -10,7 +10,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Toaster, toast } from 'sonner';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { ColorJourneyConfig } from '@/types/color-journey';
-import { exportToCssVariables, exportToJson, copyToClipboard, downloadFile } from '@/lib/utils/color-export';
+import { exportToJson, copyToClipboard, downloadFile } from '@/lib/utils/color-export';
+import { ColorJourneyEngine } from '@/lib/color-journey';
 const BUILT_IN_PRESETS: { name: string; config: ColorJourneyConfig }[] = [
   {
     name: "Vivid Sunset",
@@ -30,6 +31,7 @@ export function PresetsExportPage() {
   const [customPresets, setCustomPresets] = useState<{ name: string; config: ColorJourneyConfig }[]>([]);
   const [editingPreset, setEditingPreset] = useState<string>('');
   const [presetName, setPresetName] = useState('');
+  const [isLoadingWasm, setIsLoadingWasm] = useState(true);
   useEffect(() => {
     try {
       const storedPresets = localStorage.getItem(PRESETS_STORAGE_KEY);
@@ -40,8 +42,22 @@ export function PresetsExportPage() {
       console.error("Failed to load presets from localStorage", error);
       toast.error("Could not load custom presets.");
     }
+    const checkWasmLoading = () => {
+      const engineLoading = ColorJourneyEngine.isLoadingWasm();
+      setIsLoadingWasm(engineLoading);
+      if (!engineLoading) {
+        clearInterval(wasmCheckInterval);
+      }
+    };
+    const wasmCheckInterval = setInterval(checkWasmLoading, 100);
+    checkWasmLoading();
+    return () => clearInterval(wasmCheckInterval);
   }, []);
   const savePreset = () => {
+    if (isLoadingWasm) {
+      toast.info('Color engine is still loading, please wait a moment.');
+      return;
+    }
     if (!presetName || !editingPreset) {
       toast.error("Preset name and configuration are required.");
       return;
@@ -64,15 +80,19 @@ export function PresetsExportPage() {
     localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(newPresets));
     toast.success("Preset deleted.");
   };
-  const handleCopy = (content: string, type: string) => {
+  const handleCopy = (preset: { name: string; config: ColorJourneyConfig }) => {
+    const mockDiagnostics = { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: preset.config.dynamics.contrast > 0.08 ? 7.1 : 4.5, wcagViolations: 0, aaaCompliant: preset.config.dynamics.contrast > 0.08 };
+    const content = exportToJson({ config: preset.config, palette: [], diagnostics: mockDiagnostics });
     copyToClipboard(content).then(success => {
-      if (success) toast.success(`${type} copied to clipboard!`);
-      else toast.error(`Failed to copy ${type}.`);
+      if (success) toast.success(`JSON for "${preset.name}" copied!`);
+      else toast.error(`Failed to copy.`);
     });
   };
-  const handleDownload = (content: string, filename: string) => {
-    downloadFile(content, filename, 'application/json');
-    toast.success(`Downloaded ${filename}`);
+  const handleDownload = (preset: { name: string; config: ColorJourneyConfig }) => {
+    const mockDiagnostics = { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: preset.config.dynamics.contrast > 0.08 ? 7.1 : 4.5, wcagViolations: 0, aaaCompliant: preset.config.dynamics.contrast > 0.08 };
+    const content = exportToJson({ config: preset.config, palette: [], diagnostics: mockDiagnostics });
+    downloadFile(content, `${preset.name.replace(/\s+/g, '-')}.json`, 'application/json');
+    toast.success(`Downloaded ${preset.name}.json`);
   };
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -81,7 +101,7 @@ export function PresetsExportPage() {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <Link to="/" className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-primary">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F38020] to-[#E55A1B] flex items-center justify-center shadow-primary">
                   <Palette className="w-5 h-5 text-white" />
                 </div>
                 <h1 className="text-xl font-display font-bold">Color Journey</h1>
@@ -99,7 +119,7 @@ export function PresetsExportPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
           <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance">Presets & Export</h2>
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-orange-500 via-blue-500 to-teal-500">Presets & Export</h2>
             <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
               Save, share, and export your favorite color journey configurations.
             </p>
@@ -115,17 +135,17 @@ export function PresetsExportPage() {
                   <h3 className="text-sm font-semibold text-muted-foreground mb-2">Built-in Presets</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {BUILT_IN_PRESETS.map((preset) => (
-                      <motion.div key={preset.name} whileHover={{ y: -2 }}>
+                      <motion.div key={preset.name} whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
                         <Card className="overflow-hidden">
                           <div className="h-16" style={{ background: `linear-gradient(to right, ${preset.config.anchors.join(', ')})` }} />
                           <CardHeader className="p-4">
                             <CardTitle className="text-base">{preset.name}</CardTitle>
                           </CardHeader>
                           <CardContent className="p-4 pt-0 flex gap-2">
-                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleCopy(exportToJson({ config: preset.config, palette: [], diagnostics: {} as any }), 'JSON')}>
+                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleCopy(preset)}>
                               <Copy className="mr-2 h-4 w-4" /> JSON
                             </Button>
-                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleDownload(exportToJson({ config: preset.config, palette: [], diagnostics: {} as any }), `${preset.name}.json`)}>
+                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleDownload(preset)}>
                               <Download className="mr-2 h-4 w-4" /> Export
                             </Button>
                           </CardContent>
@@ -141,7 +161,7 @@ export function PresetsExportPage() {
                       {customPresets.map((preset, index) => (
                         <div key={index} className="flex items-center gap-2 p-2 border rounded-lg">
                           <div className="flex-1 font-medium">{preset.name}</div>
-                          <Button size="sm" variant="ghost" onClick={() => handleCopy(exportToJson({ config: preset.config, palette: [], diagnostics: {} as any }), 'JSON')}><Copy className="h-4 w-4" /></Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleCopy(preset)}><Copy className="h-4 w-4" /></Button>
                           <Button size="sm" variant="ghost" onClick={() => deletePreset(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                         </div>
                       ))}
@@ -166,7 +186,7 @@ export function PresetsExportPage() {
                   <Label htmlFor="preset-config">JSON Configuration</Label>
                   <Textarea id="preset-config" value={editingPreset} onChange={(e) => setEditingPreset(e.target.value)} rows={10} placeholder='Paste your ColorJourneyConfig JSON here...' />
                 </div>
-                <Button className="w-full" onClick={savePreset}>
+                <Button className="w-full" onClick={savePreset} disabled={isLoadingWasm}>
                   <Save className="mr-2 h-4 w-4" /> Save Preset
                 </Button>
               </CardContent>

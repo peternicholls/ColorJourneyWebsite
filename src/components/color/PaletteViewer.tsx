@@ -1,24 +1,50 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Download, Check, AlertTriangle } from 'lucide-react';
+import { Copy, Download, Check, AlertTriangle, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { GenerateResult } from '@/types/color-journey.ts';
+import { GenerateResult } from '@/types/color-journey';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
 }
-const WcagBadge = ({ ratio }: { ratio: number }) => {
-  if (ratio >= 7) return <Badge className="bg-green-600 hover:bg-green-700">AAA</Badge>;
-  if (ratio >= 4.5) return <Badge className="bg-blue-600 hover:bg-blue-700">AA</Badge>;
-  if (ratio >= 3) return <Badge variant="secondary">AA Large</Badge>;
-  return <Badge variant="destructive">Fail</Badge>;
+const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
+  const badgeContent = isAaa ? 'AAA' : ratio >= 4.5 ? 'AA' : ratio >= 3 ? 'AA Large' : 'Fail';
+  const tooltipContent = isAaa
+    ? 'WCAG AAA: All colors have a contrast ratio of at least 7:1.'
+    : ratio >= 4.5
+    ? 'WCAG AA: All colors have a contrast ratio of at least 4.5:1.'
+    : 'Fails WCAG AA standard for normal text.';
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger>
+          <Badge
+            className={
+              isAaa
+                ? 'bg-green-600 hover:bg-green-700'
+                : ratio >= 4.5
+                ? 'bg-blue-600 hover:bg-blue-700'
+                : ratio >= 3
+                ? 'bg-yellow-500 hover:bg-yellow-600'
+                : 'bg-destructive hover:bg-destructive/90'
+            }
+          >
+            {badgeContent}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{tooltipContent}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 };
 export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
   const handleCopy = (content: string, type: string) => {
@@ -58,8 +84,8 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
           <CardDescription>Individually generated colors from the journey.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
-            {isLoading && Array.from({ length: 16 }).map((_, i) => (
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10 gap-4">
+            {isLoading && Array.from({ length: 20 }).map((_, i) => (
               <Skeleton key={i} className="w-full aspect-square rounded-md" />
             ))}
             {!isLoading && result?.palette.map((color, index) => (
@@ -101,18 +127,18 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
                 <TableCell>Min. Perceptual Distance (ΔE)</TableCell>
                 <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.minDeltaE.toFixed(3) ?? 'N/A'}</TableCell>
-              </TableRow>
-              <TableRow>
+              </motion.tr>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
                 <TableCell>Min. WCAG Ratio (vs black/white)</TableCell>
                 <TableCell className="text-right font-mono flex items-center justify-end gap-2">
                   {isLoading ? <Skeleton className="h-5 w-16" /> : diagnostics?.wcagMinRatio.toFixed(2) ?? 'N/A'}
-                  {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} />}
+                  {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} isAaa={diagnostics.aaaCompliant} />}
                 </TableCell>
-              </TableRow>
-              <TableRow>
+              </motion.tr>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
                 <TableCell>WCAG AA Violations</TableCell>
                 <TableCell className="text-right">
                   {isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (
@@ -123,7 +149,7 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
                     ))
                   )}
                 </TableCell>
-              </TableRow>
+              </motion.tr>
             </TableBody>
           </Table>
           <div className="flex flex-col sm:flex-row gap-4 pt-4">

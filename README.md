@@ -60,9 +60,9 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     ```
     The edge API will be at `http://localhost:8787/api/color-journey`.
 ## Usage Notes
-- **WASM Build**: Run `./build-wasm.sh` after emsdk activation; files go to `public/assets`. Vite serves from there. If the WASM build is missing or fails to load, the app gracefully falls back to the TypeScript engine with full functionality.
+- **WASM Loading**: The application attempts to load `/assets/color_journey.wasm` on startup. If it's missing or fails, the app gracefully falls back to the TypeScript engine with full functionality. Ensure you run the build script after activating the Emscripten SDK.
+- **WCAG Compliance**: Use the 'aaa-safe' bias preset to generate palettes that are more likely to meet the WCAG AAA contrast ratio of >=7:1. The diagnostics panel will confirm compliance.
 - **API**: `POST /api/color-journey` with a JSON config body. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP. Diagnostics now include WCAG contrast ratios for text/large text compliance.
-- **UI**: Bias presets auto-configure dynamics; Bezier inputs allow custom easing (defaults: linear).
 - **Pages**: The application is split into three main pages:
     - `/`: The main interactive Playground.
     - `/presets`: A page to save, load, and manage custom presets in `localStorage`.
@@ -107,5 +107,5 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
     ```bash
     bunx wrangler deploy
     ```
-    Wrangler automatically bundles all static assets from the output directory (including the `.wasm` file) and the Worker script.
+    Wrangler automatically bundles all static assets from the output directory (including the `.wasm` file) and the Worker script. Ensure `public/assets` contains the WASM files post-build for optimal performance.
 [cloudflarebutton]
