@@ -1,125 +1,182 @@
-import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '../../types/color-journey';
-let wasmApi: {
-  generate: (configPtr: number, anchorsPtr: number) => number;
-  malloc: (size: number) => number;
-  free: (ptr: number) => void;
-  memory: ArrayBuffer;
-} | null = null;
-let isLoadingWasm = true;
-let wasmLoadPromise: Promise<void> | null = null;
-function initWasm() {
-    if (wasmLoadPromise) return wasmLoadPromise;
-    wasmLoadPromise = (async () => {
-        try {
-            const wasmUrl = '/assets/color_journey.js';
-            const headController = new AbortController();
-            const headTimeout = setTimeout(() => headController.abort(), 3000);
-            let headOk = false;
-            try {
-                const headResp = await fetch(wasmUrl, { method: 'HEAD', signal: headController.signal });
-                headOk = headResp && headResp.ok;
-            } catch (e) {
-                headOk = false;
-            } finally {
-                clearTimeout(headTimeout);
-            }
-            if (!headOk) {
-                console.info('Color Journey: WASM module not found. Using TypeScript fallback.');
-                wasmApi = null;
-                return;
-            }
-            const importPromise = import(/* @vite-ignore */ wasmUrl);
-            const importTimeout = new Promise((_res, rej) => setTimeout(() => rej(new Error('WASM import timeout')), 5000));
-            const mod = await Promise.race([importPromise, importTimeout]);
-            const Module = (mod && (mod.default || mod)) as any;
-            const moduleInstance = await Module({ noInitialRun: true });
-            wasmApi = {
-                generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
-                malloc: moduleInstance._wasm_malloc,
-                free: moduleInstance._wasm_free,
-                memory: moduleInstance.HEAPU8.buffer,
-            };
-            console.log("🎨 Color Journey WASM module loaded successfully.");
-        } catch (e) {
-            console.info("Color Journey: WASM module failed to load, using TypeScript fallback.", e);
-            wasmApi = null;
-        } finally {
-            isLoadingWasm = false;
-        }
-    })();
-    return wasmLoadPromise;
+import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '@/types/color-journey';
+// --- OKLab Math Constants & Conversions (TypeScript Implementation) ---
+// Based on the official OKLab specification by Björn Ottosson
+const M1 = [
+  [0.4122214708, 0.5363325363, 0.0514459929],
+  [0.2119034982, 0.6806995451, 0.1073969566],
+  [0.0883024619, 0.2817188376, 0.6299787005],
+];
+const M2 = [
+  [0.2104542553, 0.7936177850, -0.0040720468],
+  [1.9779984951, -2.4285922050, 0.4505937099],
+  [0.0259040371, 0.7827717662, -0.8086757660],
+];
+const M2_INV = [
+  [1.0000000, 0.3963377774, 0.2158037573],
+  [1.0000000, -0.1055613458, -0.0638541728],
+  [1.0000000, -0.0894841775, -1.2914855480],
+];
+function srgbToLinear(c: number): number {
+  return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
 }
-initWasm();
-// --- TypeScript Fallback Implementation ---
-const srgbToLinear = (c: number): number => c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
-const linearToSrgb = (c: number): number => c > 0.0031308 ? 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055 : 12.92 * c;
-const hexToRgb = (hex: string): RGBColor => {
-  const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return r ? { r: parseInt(r[1], 16) / 255, g: parseInt(r[2], 16) / 255, b: parseInt(r[3], 16) / 255 } : { r: 0, g: 0, b: 0 };
-};
-const rgbToHex = (rgb: RGBColor): string => `#${[rgb.r, rgb.g, rgb.b].map(c => Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16).padStart(2, '0')).join('')}`;
-const srgbToOklab = (rgb: RGBColor): OKLabColor => {
-  const [r, g, b] = [srgbToLinear(rgb.r), srgbToLinear(rgb.g), srgbToLinear(rgb.b)];
-  const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
-  const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
-  const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
-  const [l_, m_, s_] = [Math.cbrt(l), Math.cbrt(m), Math.cbrt(s)];
-  return { l: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_, a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_, b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_ };
-};
-const oklabToSrgb = (ok: OKLabColor): RGBColor => {
-  const l_ = ok.l + 0.3963377774 * ok.a + 0.2158037573 * ok.b;
-  const m_ = ok.l - 0.1055613458 * ok.a - 0.0638541728 * ok.b;
-  const s_ = ok.l - 0.0894841775 * ok.a - 1.2914855480 * ok.b;
-  const [l, m, s] = [l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_];
-  return { r: linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), g: linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), b: linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s) };
-};
-const deltaEOK = (c1: OKLabColor, c2: OKLabColor): number => Math.sqrt(Math.pow(c1.l - c2.l, 2) + Math.pow(c1.a - c2.a, 2) + Math.pow(c1.b - c2.b, 2));
-const lerp = (a: number, b: number, t: number): number => a * (1 - t) + b * t;
-const lerpOK = (c1: OKLabColor, c2: OKLabColor, t: number): OKLabColor => ({ l: lerp(c1.l, c2.l, t), a: lerp(c1.a, c2.a, t), b: lerp(c1.b, c2.b, t) });
-const getContrastRatio = (rgb1: RGBColor, rgb2: RGBColor): number => {
-  const lum = (rgb: RGBColor) => { const [r, g, b] = [rgb.r, rgb.g, rgb.b].map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-  const [l1, l2] = [lum(rgb1), lum(rgb2)];
-  return l1 > l2 ? (l1 + 0.05) / (l2 + 0.05) : (l2 + 0.05) / (l1 + 0.05);
-};
-async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateResult> {
-  // This is a simplified version for brevity. The full logic from the previous phase is assumed to be here.
-  const { anchors, numColors, dynamics, variation } = config;
+function linearToSrgb(c: number): number {
+  return c > 0.0031308 ? 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055 : 12.92 * c;
+}
+function hexToRgb(hex: string): RGBColor {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16) / 255,
+        g: parseInt(result[2], 16) / 255,
+        b: parseInt(result[3], 16) / 255,
+      }
+    : { r: 0, g: 0, b: 0 };
+}
+function rgbToHex(rgb: RGBColor): string {
+  const toHex = (c: number) => {
+    const hex = Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+  return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+}
+function srgbToOklab(rgb: RGBColor): OKLabColor {
+  const r_ = srgbToLinear(rgb.r);
+  const g_ = srgbToLinear(rgb.g);
+  const b_ = srgbToLinear(rgb.b);
+  const l = M1[0][0] * r_ + M1[0][1] * g_ + M1[0][2] * b_;
+  const m = M1[1][0] * r_ + M1[1][1] * g_ + M1[1][2] * b_;
+  const s = M1[2][0] * r_ + M1[2][1] * g_ + M1[2][2] * b_;
+  const l_ = Math.cbrt(l);
+  const m_ = Math.cbrt(m);
+  const s_ = Math.cbrt(s);
+  return {
+    l: M2[0][0] * l_ + M2[0][1] * m_ + M2[0][2] * s_,
+    a: M2[1][0] * l_ + M2[1][1] * m_ + M2[1][2] * s_,
+    b: M2[2][0] * l_ + M2[2][1] * m_ + M2[2][2] * s_,
+  };
+}
+function oklabToSrgb(ok: OKLabColor): RGBColor {
+  const l_ = ok.l + M2_INV[0][1] * ok.a + M2_INV[0][2] * ok.b;
+  const m_ = ok.l + M2_INV[1][1] * ok.a + M2_INV[1][2] * ok.b;
+  const s_ = ok.l + M2_INV[2][1] * ok.a + M2_INV[2][2] * ok.b;
+  const l = l_ * l_ * l_;
+  const m = m_ * m_ * m_;
+  const s = s_ * s_ * s_;
+  const r_ = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s;
+  const g_ = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s;
+  const b_ = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
+  return {
+    r: linearToSrgb(r_),
+    g: linearToSrgb(g_),
+    b: linearToSrgb(b_),
+  };
+}
+function deltaEOK(c1: OKLabColor, c2: OKLabColor): number {
+  const dL = c1.l - c2.l;
+  const da = c1.a - c2.a;
+  const db = c1.b - c2.b;
+  return Math.sqrt(dL * dL + da * da + db * db);
+}
+// --- Journey Engine ---
+function lerp(a: number, b: number, t: number): number {
+  return a * (1 - t) + b * t;
+}
+function lerpOK(c1: OKLabColor, c2: OKLabColor, t: number): OKLabColor {
+  return {
+    l: lerp(c1.l, c2.l, t),
+    a: lerp(c1.a, c2.a, t),
+    b: lerp(c1.b, c2.b, t),
+  };
+}
+// Simple seeded PRNG (xorshift128+)
+class SeededRNG {
+  private s: [number, number, number, number];
+  constructor(seed: number) {
+    this.s = [seed, seed, seed, seed];
+  }
+  next(): number {
+    let t = this.s[0];
+    const s = this.s[1];
+    this.s[0] = s;
+    t ^= t << 11;
+    t ^= t >>> 8;
+    this.s[1] = this.s[2];
+    this.s[2] = this.s[3];
+    this.s[3] = t ^ s ^ (t >>> 19) ^ (s >>> 5);
+    return (this.s[3] >>> 0) / 0x100000000;
+  }
+}
+async function generatePalette(config: ColorJourneyConfig): Promise<GenerateResult> {
+  const { anchors, numColors, loop, dynamics, variation } = config;
   const palette: ColorPoint[] = [];
-  if (anchors.length === 0) return { palette, config, diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: 1, wcagViolations: 0 } };
-  const okAnchors = anchors.map(hexToRgb).map(srgbToOklab);
+  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0 };
+  if (anchors.length === 0) {
+    return { palette, config, diagnostics };
+  }
+  const okAnchors = anchors.map(hex => srgbToOklab(hexToRgb(hex)));
+  const rng = new SeededRNG(variation.seed);
   for (let i = 0; i < numColors; i++) {
-    const t = numColors > 1 ? i / (numColors - 1) : 0.5;
-    const currentOK = okAnchors.length > 1 ? lerpOK(okAnchors[0], okAnchors[1], t) : { ...okAnchors[0] };
-    currentOK.l = Math.max(0, Math.min(1, currentOK.l + (dynamics.lightness * 0.1)));
-    const chroma = Math.sqrt(currentOK.a ** 2 + currentOK.b ** 2) * dynamics.chroma;
+    let t = numColors > 1 ? i / (numColors - 1) : 0.5;
+    if (loop === 'closed' && numColors > 1) {
+      t = i / numColors;
+    }
+    let currentOK: OKLabColor;
+    const numSegments = loop === 'closed' ? okAnchors.length : okAnchors.length - 1;
+    if (okAnchors.length === 1) {
+      const anchor = okAnchors[0];
+      const hue = Math.atan2(anchor.b, anchor.a);
+      const chroma = Math.sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
+      const newHue = hue + t * 2 * Math.PI;
+      currentOK = {
+        l: anchor.l,
+        a: Math.cos(newHue) * chroma,
+        b: Math.sin(newHue) * chroma,
+      };
+    } else {
+      const segmentT = t * numSegments;
+      const segmentIdx = Math.floor(segmentT);
+      const localT = segmentT - segmentIdx;
+      const startAnchor = okAnchors[segmentIdx];
+      const endAnchor = okAnchors[(segmentIdx + 1) % okAnchors.length];
+      currentOK = lerpOK(startAnchor, endAnchor, localT);
+    }
+    // Apply Dynamics
+    currentOK.l += dynamics.lightness * 0.1;
+    const chroma = Math.sqrt(currentOK.a * currentOK.a + currentOK.b * currentOK.b);
     const hue = Math.atan2(currentOK.b, currentOK.a);
-    currentOK.a = Math.cos(hue) * chroma;
-    currentOK.b = Math.sin(hue) * chroma;
-    palette.push({ ok: currentOK, rgb: oklabToSrgb(currentOK), hex: '' });
+    const newChroma = chroma * dynamics.chroma;
+    currentOK.a = Math.cos(hue) * newChroma;
+    currentOK.b = Math.sin(hue) * newChroma;
+    // Apply Variation
+    if (variation.mode !== 'off') {
+      const strength = variation.mode === 'subtle' ? 0.01 : 0.03;
+      currentOK.l += (rng.next() - 0.5) * strength * 0.5;
+      currentOK.a += (rng.next() - 0.5) * strength;
+      currentOK.b += (rng.next() - 0.5) * strength;
+    }
+    const rgb = oklabToSrgb(currentOK);
+    const hex = rgbToHex(rgb);
+    palette.push({ ok: currentOK, rgb, hex });
   }
-  palette.forEach(p => { p.rgb = oklabToSrgb(p.ok); p.hex = rgbToHex(p.rgb); });
-  const diagnostics: GenerateResult['diagnostics'] = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, enforcementIters: 0, traversalStrategy: 'perceptual' };
+  // Diagnostics
   for (let i = 1; i < palette.length; i++) {
-    const dE = deltaEOK(palette[i - 1].ok, palette[i].ok);
-    diagnostics.minDeltaE = Math.min(diagnostics.minDeltaE, dE);
-    diagnostics.maxDeltaE = Math.max(diagnostics.maxDeltaE, dE);
+    const deltaE = deltaEOK(palette[i - 1].ok, palette[i].ok);
+    diagnostics.minDeltaE = Math.min(diagnostics.minDeltaE, deltaE);
+    diagnostics.maxDeltaE = Math.max(diagnostics.maxDeltaE, deltaE);
+    if (deltaE < dynamics.contrast * 0.1) {
+      diagnostics.contrastViolations++;
+    }
   }
-  diagnostics.wcagMinRatio = Math.min(...palette.map(p => getContrastRatio(p.rgb, {r:1,g:1,b:1})));
   return { palette, config, diagnostics };
 }
-async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
-    if (!wasmApi) return generatePaletteTS(config);
-    // This is a simplified version. The full logic from the previous phase is assumed to be here.
-    return generatePaletteTS(config); // Fallback for brevity
-}
+// --- Public API ---
+// The API is async to allow for future WASM loading without changing the interface.
 export const ColorJourneyEngine = {
-  generate: async (config: ColorJourneyConfig): Promise<GenerateResult> => {
-    console.time('total-gen');
-    await initWasm();
-    const result = wasmApi ? await generatePaletteWasm(config) : await generatePaletteTS(config);
-    console.timeEnd('total-gen');
-    return result;
+  generate: (config: ColorJourneyConfig): Promise<GenerateResult> => {
+    return new Promise((resolve) => {
+      // In a real scenario, we might check for a WASM module here.
+      // For Phase 1, we directly call the TS implementation.
+      resolve(generatePalette(config));
+    });
   },
-  isWasmReady: () => !!wasmApi,
-  isLoadingWasm: () => isLoadingWasm,
 };

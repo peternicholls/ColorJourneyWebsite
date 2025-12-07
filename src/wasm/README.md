@@ -38,43 +38,40 @@ The C code must expose a function with the following signature. This function wi
 **`color_journey.c`:**
 ```c
 #include <stdint.h>
-#include <stdbool.h>
 // Expected input structure (packed for consistency)
 typedef struct {
     // ... fields matching ColorJourneyConfig ...
     double lightness;
     double chroma;
-    double contrast;
-    double vibrancy;
-    double warmth;
-    double bezier_light[2];
-    double bezier_chroma[2];
+    // ... etc.
     uint32_t seed;
     int num_colors;
     int num_anchors;
-    int loop_mode;
-    int variation_mode;
-    bool enable_color_circle;
-    double arc_length;
 } CJ_Config;
 // Output structure
 typedef struct {
-    oklab ok;
-    srgb_u8 rgb;
+    double l, a, b; // OKLab values
+    uint8_t r, g, b; // sRGB values
 } CJ_ColorPoint;
 /**
  * @brief Generates a discrete color palette.
  * @param config Pointer to the configuration struct.
- * @param anchors Pointer to an array of anchor colors (e.g., packed oklab structs).
+ * @param anchors Pointer to an array of anchor colors (e.g., packed RGB floats).
  * @return A pointer to an array of CJ_ColorPoint structs. The caller in JS is responsible for freeing this memory.
+ *         The first element of the array contains metadata (e.g., palette size).
  */
-CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors);
+CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, double* anchors);
 ```
 ## JavaScript Integration
-The `src/lib/color-journey/index.ts` wrapper will be responsible for loading, calling, and managing memory for the WASM module.
-**Logic Notes:**
--   **Single-anchor mode**: If `enable_color_circle` is false, the engine first generates colors by varying lightness and chroma before traversing hue. If true, it uses `arc_length` to travel along the hue wheel.
--   **Multi-anchor mode**: A midpoint chroma boost is applied if `vibrancy` is low to prevent muddy mid-tones.
+The `src/lib/color-journey/index.ts` wrapper will be responsible for:
+1.  Loading the WASM module.
+2.  Using `cwrap` to create a type-safe JavaScript function that calls `_generate_discrete_palette`.
+3.  Allocating memory in the WASM heap for the `config` and `anchors` using `_malloc`.
+4.  Copying the configuration data from the JS object into the allocated WASM memory.
+5.  Calling the wrapped C function.
+6.  Reading the resulting `CJ_ColorPoint` array from the WASM heap.
+7.  Freeing the allocated memory using `_free`.
+8.  Formatting the data into the `GenerateResult` object.
 **Example JS Snippet:**
 ```typescript
 // Inside src/lib/color-journey/index.ts after loading the module
@@ -84,18 +81,16 @@ const wasmApi = {
   free: Module._free,
 };
 // ... inside the generate function ...
-// 1. Allocate memory for config and anchors
+// 1. Allocate memory
 const configPtr = wasmApi.malloc(configSize);
 const anchorsPtr = wasmApi.malloc(anchorsSize);
-// 2. Write data to WASM memory using DataView or HEAP TypedArrays
-// e.g., Module.HEAPF64.set([config.dynamics.lightness, ...], configPtr / 8);
-// Module.HEAPU8.set([config.dynamics.enableColorCircle ? 1 : 0], boolOffset);
+// 2. Write data to WASM memory
+// Module.HEAPF64.set(...) or similar
 // 3. Call C function
 const resultPtr = wasmApi.generate(configPtr, anchorsPtr);
 // 4. Read data from resultPtr
-// new Float64Array(Module.HEAPF64.buffer, resultPtr, numColors * 3) // for OKLab
-// new Uint8Array(Module.HEAPU8.buffer, resultPtr + oklabSize, numColors * 3) // for sRGB
-// 5. Free all allocated memory
+// new Float64Array(Module.HEAPF64.buffer, resultPtr, numColors * 6)
+// 5. Free memory
 wasmApi.free(configPtr);
 wasmApi.free(anchorsPtr);
 wasmApi.free(resultPtr);
