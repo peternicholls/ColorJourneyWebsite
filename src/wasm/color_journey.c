@@ -98,16 +98,42 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
         }
         palette[i].ok = current_ok;
     }
+    // Multi-dimensional traversal
+    if (config->num_colors > 20) {
+        for (int i = 0; i < config->num_colors; i++) {
+            double alt_l = sin(i * M_PI / 10.0) * 0.05;
+            palette[i].ok.l = fmax(0.0, fmin(1.0, palette[i].ok.l + alt_l));
+            double chroma_pulse = 1.0 + 0.1 * cos(i * M_PI / 5.0);
+            double chroma_i = sqrt(palette[i].ok.a * palette[i].ok.a + palette[i].ok.b * palette[i].ok.b);
+            double hue_i = atan2(palette[i].ok.b, palette[i].ok.a);
+            double hue_offset = 0.05 * (i % 12);
+            double new_chroma = chroma_i * chroma_pulse;
+            palette[i].ok.a = cos(hue_i + hue_offset) * new_chroma;
+            palette[i].ok.b = sin(hue_i + hue_offset) * new_chroma;
+        }
+    }
     // Contrast Enforcement
-    double min_contrast = config->contrast * 0.1;
-    for (int k = 0; k < 3; ++k) {
+    double min_contrast = fmax(config->contrast * 0.1, 0.01);
+    for (int iter = 0; iter < 5; ++iter) {
+        int adjusted = 0;
         for (int i = 1; i < config->num_colors; ++i) {
             double dE = delta_e_ok(palette[i-1].ok, palette[i].ok);
             if (dE < min_contrast) {
-                double nudge = (min_contrast - dE) * 0.5;
+                adjusted = 1;
+                double nudge = (min_contrast - dE) * 0.1;
                 palette[i].ok.l = fmax(0.0, fmin(1.0, palette[i].ok.l + nudge));
+                dE = delta_e_ok(palette[i-1].ok, palette[i].ok);
+                if (dE < min_contrast) {
+                    double chroma_i = sqrt(palette[i].ok.a * palette[i].ok.a + palette[i].ok.b * palette[i].ok.b);
+                    if (chroma_i > 1e-5) {
+                        double scale = 1.0 + nudge / chroma_i;
+                        palette[i].ok.a *= scale;
+                        palette[i].ok.b *= scale;
+                    }
+                }
             }
         }
+        if (!adjusted) break;
     }
     for (int i = 0; i < config->num_colors; ++i) {
         palette[i].rgb = oklab_to_srgb(palette[i].ok);

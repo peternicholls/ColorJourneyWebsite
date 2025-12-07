@@ -131,21 +131,9 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     const applyH = dims.includes('H') || dims.includes('all');
     const baseChroma = Math.sqrt(currentOK.a * currentOK.a + currentOK.b * currentOK.b);
     let baseHue = Math.atan2(currentOK.b, currentOK.a);
-    // Apply lightness
-    if (applyL) {
-      const lightnessMod = lerp(0, dynamics.lightness * 0.2, easedT * strength);
-      currentOK.l += lightnessMod;
-    } else {
-      currentOK.l += dynamics.lightness * 0.2 * segmentLocalT;
-    }
-    // Apply chroma
+    if (applyL) { currentOK.l += lerp(0, dynamics.lightness * 0.2, easedT * strength); } else { currentOK.l += dynamics.lightness * 0.2 * segmentLocalT; }
     let finalChroma = baseChroma;
-    if (applyC) {
-      finalChroma = lerp(baseChroma, baseChroma * dynamics.chroma, easedT * strength);
-    } else {
-      finalChroma = lerp(baseChroma, baseChroma * dynamics.chroma, segmentLocalT);
-    }
-    // Apply hue (single anchor only)
+    if (applyC) { finalChroma = lerp(baseChroma, baseChroma * dynamics.chroma, easedT * strength); } else { finalChroma = lerp(baseChroma, baseChroma * dynamics.chroma, segmentLocalT); }
     if (anchors.length === 1) {
       if (dynamics.enableColorCircle) {
         const arc = (dynamics.arcLength || 0) / 360 * 2 * Math.PI;
@@ -158,39 +146,64 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
         finalChroma += Math.cos(stepT * Math.PI) * 0.05 * (dynamics.chroma - 1);
       }
     }
-    // Midpoint vibrancy boost
     const proximity = Math.abs(segmentLocalT - 0.5);
     const radius = 0.35;
     const boost = 1 + dynamics.vibrancy * 0.6 * Math.max(0, 1 - proximity / radius);
     finalChroma *= boost;
     currentOK.a = Math.cos(baseHue) * finalChroma;
     currentOK.b = Math.sin(baseHue) * finalChroma;
-    // Variation
     if (variation.mode !== 'off') {
       let varStrength = variation.mode === 'subtle' ? 0.01 : 0.03;
-      if (i > 0 && deltaEOK(palette[i - 1].ok, currentOK) < (dynamics.contrast * 0.1)) {
-        varStrength *= 0.8;
-      }
+      if (i > 0 && deltaEOK(palette[i - 1]?.ok ?? currentOK, currentOK) < (dynamics.contrast * 0.1)) { varStrength *= 0.8; }
       currentOK.l += (rng.next() - 0.5) * varStrength * 0.5;
       currentOK.a += (rng.next() - 0.5) * varStrength;
       currentOK.b += (rng.next() - 0.5) * varStrength;
     }
     palette.push({ ok: currentOK, rgb: oklabToSrgb(currentOK), hex: '' });
   }
-  // Contrast Enforcement
-  const minDeltaE = dynamics.contrast * 0.1;
-  for (let iter = 0; iter < 3; iter++) {
-    for (let i = 1; i < palette.length; i++) {
-      const dE = deltaEOK(palette[i - 1].ok, palette[i].ok);
-      if (dE < minDeltaE) {
-        const nudge = (minDeltaE - dE) * 0.5;
-        palette[i].ok.l += nudge;
-        palette[i].ok.l = Math.max(0, Math.min(1, palette[i].ok.l));
-      }
+  // Multi-dimensional traversal for large palettes
+  const traversalStrategy = numColors > 20 ? 'multi-dim' : 'perceptual';
+  if (traversalStrategy === 'multi-dim') {
+    for (let i = 0; i < palette.length; i++) {
+      const p = palette[i];
+      const altL = Math.sin(i * Math.PI / 10) * 0.05;
+      p.ok.l = Math.max(0, Math.min(1, p.ok.l + altL));
+      const pulseC = 1 + 0.1 * Math.cos(i * Math.PI / 5);
+      const chroma = Math.sqrt(p.ok.a * p.ok.a + p.ok.b * p.ok.b);
+      const hue = Math.atan2(p.ok.b, p.ok.a);
+      const hueOffset = 0.05 * (i % 12);
+      const newChroma = chroma * pulseC;
+      p.ok.a = Math.cos(hue + hueOffset) * newChroma;
+      p.ok.b = Math.sin(hue + hueOffset) * newChroma;
     }
   }
+  // Contrast Enforcement
+  const minDeltaE = Math.max(dynamics.contrast * 0.1, 0.01);
+  let totalIters = 0;
+  for (let iter = 0; iter < 5; iter++) {
+    let adjusted = false;
+    for (let i = 1; i < palette.length; i++) {
+      let dE = deltaEOK(palette[i - 1].ok, palette[i].ok);
+      if (dE < minDeltaE) {
+        adjusted = true;
+        totalIters++;
+        const nudge = (minDeltaE - dE) * 0.1;
+        palette[i].ok.l = Math.max(0, Math.min(1, palette[i].ok.l + nudge));
+        dE = deltaEOK(palette[i - 1].ok, palette[i].ok);
+        if (dE < minDeltaE) {
+          const chromaI = Math.sqrt(palette[i].ok.a ** 2 + palette[i].ok.b ** 2);
+          if (chromaI > 1e-5) {
+            const scale = 1 + nudge / chromaI;
+            palette[i].ok.a *= scale;
+            palette[i].ok.b *= scale;
+          }
+        }
+      }
+    }
+    if (!adjusted) break;
+  }
   palette.forEach(p => { p.rgb = oklabToSrgb(p.ok); p.hex = rgbToHex(p.rgb); });
-  const diagnostics: GenerateResult['diagnostics'] = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false, perceptualStepCount: 0, arcUsage: 0 };
+  const diagnostics: GenerateResult['diagnostics'] = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false, perceptualStepCount: 0, arcUsage: 0, enforcementIters: totalIters, traversalStrategy };
   const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
   for (let i = 0; i < palette.length; i++) {
     if (i > 0) {

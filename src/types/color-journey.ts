@@ -14,19 +14,12 @@ export interface DynamicsConfig {
   vibrancy: number; // 0 to 1 (midpoint boost)
   warmth: number; // -1 to 1 (cool to warm)
   biasPreset?: BiasPreset;
-  /** Bezier curve control points for lightness. Defaults to [0.5, 0.5] */
   bezierLight?: [number, number];
-  /** Bezier curve control points for chroma. Defaults to [0.5, 0.5] */
   bezierChroma?: [number, number];
-  /** Enable hue traversal after perceptual variations. Defaults to false. */
   enableColorCircle?: boolean;
-  /** Arc degrees for color wheel extension (0-360). Defaults to 0. */
   arcLength?: number;
-  /** The easing curve style for journey traversal. */
   curveStyle?: CurveStyle;
-  /** The dimensions (Lightness, Chroma, Hue) the curve applies to. */
   curveDimensions?: CurveDimension[];
-  /** The strength of the easing curve's effect. */
   curveStrength?: number;
 }
 export interface VariationConfig {
@@ -34,13 +27,15 @@ export interface VariationConfig {
   seed: number;
 }
 export interface ColorJourneyConfig {
-  /** sRGB hex strings, e.g., "#F38020". Must match /^#[0-9a-fA-F]{6}$/ */
   anchors: string[];
   numColors: number;
   loop: LoopMode;
   granularity: GranularityMode;
   dynamics: DynamicsConfig;
   variation: VariationConfig;
+  ui?: {
+    show3D?: boolean;
+  };
 }
 export interface GenerateResult {
   palette: ColorPoint[];
@@ -59,5 +54,7 @@ export interface GenerateResult {
       dimensions: string[];
       strength: number;
     };
+    enforcementIters?: number;
+    traversalStrategy?: 'perceptual' | 'multi-dim';
   };
 }

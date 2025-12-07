@@ -11,11 +11,22 @@ const ColorJourneyConfigSchema = z.object({
     contrast: z.number(),
     vibrancy: z.number(),
     warmth: z.number(),
+    biasPreset: z.enum(['neutral', 'lighter', 'darker', 'muted', 'vivid', 'warm', 'cool', 'aaa-safe']).optional(),
+    bezierLight: z.tuple([z.number(), z.number()]).optional(),
+    bezierChroma: z.tuple([z.number(), z.number()]).optional(),
+    enableColorCircle: z.boolean().optional(),
+    arcLength: z.number().optional(),
+    curveStyle: z.enum(['linear', 'ease-in', 'ease-out', 'sinusoidal', 'stepped', 'custom']).optional(),
+    curveDimensions: z.array(z.enum(['L', 'C', 'H', 'all'])).optional(),
+    curveStrength: z.number().optional(),
   }),
   variation: z.object({
     mode: z.enum(['off', 'subtle', 'noticeable']),
     seed: z.number().int(),
   }),
+  ui: z.object({
+    show3D: z.boolean().optional(),
+  }).optional(),
 });
 const GenerateResultSchema = z.object({
   config: ColorJourneyConfigSchema,
@@ -27,6 +38,18 @@ const GenerateResultSchema = z.object({
     minDeltaE: z.number(),
     maxDeltaE: z.number(),
     contrastViolations: z.number(),
+    wcagMinRatio: z.number(),
+    wcagViolations: z.number(),
+    aaaCompliant: z.boolean().optional(),
+    perceptualStepCount: z.number().optional(),
+    arcUsage: z.number().optional(),
+    curveApplied: z.object({
+        style: z.string(),
+        dimensions: z.array(z.string()),
+        strength: z.number(),
+    }).optional(),
+    enforcementIters: z.number().optional(),
+    traversalStrategy: z.enum(['perceptual', 'multi-dim']).optional(),
   }),
 });
 export function exportToCssVariables(palette: ColorPoint[]): string {
@@ -45,7 +68,6 @@ export function exportToJson(result: GenerateResult): string {
     return JSON.stringify(validatedResult, null, 2);
   } catch (error) {
     console.error("Zod validation failed for export:", error);
-    // Fallback to non-validated export if schema fails
     return JSON.stringify(result, null, 2);
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Palette, Github } from 'lucide-react';
@@ -33,6 +33,9 @@ const initialConfig: ColorJourneyConfig = {
     mode: 'off',
     seed: 12345,
   },
+  ui: {
+    show3D: false,
+  },
 };
 export function HomePage() {
   const [config, setConfig] = useState<ColorJourneyConfig>(initialConfig);
@@ -59,6 +62,12 @@ export function HomePage() {
       setIsLoading(false);
     });
   }, [debouncedConfig]);
+  const handleToggle3D = useCallback((show: boolean) => {
+    setConfig(prevConfig => ({
+      ...prevConfig,
+      ui: { ...prevConfig.ui, show3D: show },
+    }));
+  }, []);
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
@@ -119,9 +128,19 @@ export function HomePage() {
               >
                 <ColorJourneyControls config={config} onConfigChange={setConfig} isLoadingWasm={isLoadingWasm} />
               </motion.div>
-              <div className="md:col-span-2">
-                <PaletteViewer result={result} isLoading={isLoading || isLoadingWasm} />
-              </div>
+              <motion.div 
+                className="md:col-span-2"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                <PaletteViewer 
+                  result={result} 
+                  isLoading={isLoading || isLoadingWasm} 
+                  show3D={config.ui?.show3D || false}
+                  onToggle3D={handleToggle3D}
+                />
+              </motion.div>
             </div>
           </div>
         </div>
@@ -135,7 +154,6 @@ export function HomePage() {
     </div>
   );
 }
-// Debounce hook to prevent excessive re-renders on slider drag
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
   useEffect(() => {

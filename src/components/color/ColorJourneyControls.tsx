@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig, CurveStyle, CurveDimension } from '@/types/color-journey';
-import { Plus, Trash2, Dices } from 'lucide-react';
+import { Plus, Trash2, Dices, Orbit } from 'lucide-react';
 interface ColorJourneyControlsProps {
   config: ColorJourneyConfig;
   onConfigChange: (newConfig: ColorJourneyConfig) => void;
@@ -74,7 +74,6 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
     }
   };
   const applyBias = (biasName: BiasPreset) => {
-    const bias = BIAS_MAP[biasName];
     handleMultipleDynamicsChange({ ...bias, biasPreset: biasName });
   };
   const handleCurveStyleChange = (style: CurveStyle) => {

@@ -1,18 +1,23 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Download, Check, AlertTriangle, Award } from 'lucide-react';
+import { Copy, Download, Check, AlertTriangle, Award, Orbit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { GenerateResult } from '@/types/color-journey';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
+import { OKLab3DViewer } from './OKLab3DViewer';
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
+  show3D: boolean;
+  onToggle3D: (show: boolean) => void;
 }
 const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
   const badgeContent = isAaa ? 'AAA' : ratio >= 4.5 ? 'AA' : ratio >= 3 ? 'AA Large' : 'Fail';
@@ -24,20 +29,22 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger>
-          <Badge
-            className={
-              isAaa
-                ? 'bg-green-600 hover:bg-green-700'
-                : ratio >= 4.5
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : ratio >= 3
-                ? 'bg-yellow-500 hover:bg-yellow-600'
-                : 'bg-destructive hover:bg-destructive/90'
-            }
-          >
-            {badgeContent}
-          </Badge>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>
+            <Badge
+              className={
+                isAaa
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : ratio >= 4.5
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : ratio >= 3
+                  ? 'bg-yellow-500 hover:bg-yellow-600'
+                  : 'bg-destructive hover:bg-destructive/90'
+              }
+            >
+              {badgeContent}
+            </Badge>
+          </span>
         </TooltipTrigger>
         <TooltipContent>
           <p>{tooltipContent}</p>
@@ -46,7 +53,7 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
     </TooltipProvider>
   );
 };
-export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
+export function PaletteViewer({ result, isLoading, show3D, onToggle3D }: PaletteViewerProps) {
   const handleCopy = (content: string, type: string) => {
     copyToClipboard(content).then((success) => {
       if (success) toast.success(`${type} copied to clipboard!`);
@@ -60,13 +67,30 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
   return (
     <div className="space-y-8">
       <Card>
-        <CardHeader>
-          <CardTitle>Continuous Preview</CardTitle>
-          <CardDescription>A smooth gradient representing the entire color journey.</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>Journey Preview</CardTitle>
+            <CardDescription>Visualize the entire color journey.</CardDescription>
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center space-x-2">
+                  <Switch id="3d-view" checked={show3D} onCheckedChange={onToggle3D} />
+                  <Label htmlFor="3d-view"><Orbit className="h-5 w-5" /></Label>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Toggle 3D OKLab View</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="w-full aspect-video rounded-lg" />
+          ) : show3D ? (
+            <OKLab3DViewer palette={result?.palette || []} />
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
@@ -139,37 +163,27 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
                 </TableCell>
               </motion.tr>
               <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-                <TableCell>WCAG AA Violations</TableCell>
+                <TableCell>Traversal Strategy</TableCell>
                 <TableCell className="text-right">
                   {isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (
-                    diagnostics && (diagnostics.wcagViolations === 0 ? (
-                      <span className="flex items-center justify-end gap-2 text-green-600"><Check className="h-4 w-4" /> All Pass (AA)</span>
-                    ) : (
-                      <span className="flex items-center justify-end gap-2 text-amber-600"><AlertTriangle className="h-4 w-4" /> {diagnostics.wcagViolations} Failures</span>
-                    ))
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Badge variant={diagnostics?.traversalStrategy === 'multi-dim' ? 'secondary' : 'default'}>
+                            {diagnostics?.traversalStrategy || 'perceptual'}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{diagnostics?.traversalStrategy === 'multi-dim' ? 'Used alternation & pulses for large palette distinctness.' : 'Standard perceptual interpolation.'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </TableCell>
               </motion.tr>
               <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
-                <TableCell>Curve Applied</TableCell>
-                <TableCell className="text-right font-mono flex items-center justify-end gap-2">
-                  {isLoading ? <Skeleton className="h-5 w-24" /> : (
-                    diagnostics?.curveApplied ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge variant="secondary" className={diagnostics.curveApplied.style === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}>
-                              {diagnostics.curveApplied.style}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Applied non-linear pacing: {diagnostics.curveApplied.style} to [{diagnostics.curveApplied.dimensions.join(', ')}] at {Math.round(diagnostics.curveApplied.strength * 100)}% strength.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    ) : 'N/A'
-                  )}
-                </TableCell>
+                <TableCell>Enforcement Iterations</TableCell>
+                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.enforcementIters ?? '0'}</TableCell>
               </motion.tr>
             </TableBody>
           </Table>
