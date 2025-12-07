@@ -23,6 +23,8 @@ const initialConfig: ColorJourneyConfig = {
     biasPreset: 'neutral',
     bezierLight: [0.5, 0.5],
     bezierChroma: [0.5, 0.5],
+    enableColorCircle: false,
+    arcLength: 0,
   },
   variation: {
     mode: 'off',

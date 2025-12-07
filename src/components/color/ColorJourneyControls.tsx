@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Switch } from '@/components/ui/switch';
 import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig } from '@/types/color-journey';
 import { Plus, Trash2, Dices } from 'lucide-react';
 interface ColorJourneyControlsProps {
@@ -144,6 +145,34 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                 <div className="space-y-2">
                   <Label>Midpoint Vibrancy ({config.dynamics.vibrancy.toFixed(2)})</Label>
                   <Slider value={[config.dynamics.vibrancy]} onValueChange={([v]) => handleDynamicsChange('vibrancy', v)} min={0} max={1} step={0.05} disabled={isLoadingWasm} />
+                </div>
+              </AccordionContent>
+            </motion.div>
+          </AccordionItem>
+          <AccordionItem value="journey-mode">
+            <AccordionTrigger className="text-sm font-medium">Journey Mode (Single Anchor)</AccordionTrigger>
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+              <AccordionContent className="space-y-4 pt-2">
+                <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Label>Enable Color Circle</Label>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Enable hue traversal after perceptual variations.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <p className="text-xs text-muted-foreground">Extend journey via color wheel arc.</p>
+                  </div>
+                  <Switch checked={config.dynamics.enableColorCircle || false} onCheckedChange={checked => handleDynamicsChange('enableColorCircle', checked)} disabled={isLoadingWasm || config.anchors.length > 1} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Arc Length ({(config.dynamics.arcLength || 0).toFixed(0)}°)</Label>
+                  <Slider value={[(config.dynamics.arcLength || 0)]} onValueChange={([v]) => handleDynamicsChange('arcLength', v)} min={0} max={360} step={10} disabled={!config.dynamics.enableColorCircle || isLoadingWasm || config.anchors.length > 1} />
+                  <p className="text-xs text-muted-foreground">0° = perceptual variations only.</p>
                 </div>
               </AccordionContent>
             </motion.div>

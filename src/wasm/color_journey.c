@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <stdbool.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #define EXPORT EMSCRIPTEN_KEEPALIVE
@@ -23,6 +24,8 @@ typedef struct {
     int num_anchors;
     int loop_mode; // 0: open, 1: closed, 2: ping-pong
     int variation_mode; // 0: off, 1: subtle, 2: noticeable
+    bool enable_color_circle;
+    double arc_length;
 } CJ_Config;
 typedef struct {
     oklab ok;
@@ -56,8 +59,19 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
             oklab anchor = anchors[0];
             double hue = atan2(anchor.b, anchor.a);
             double chroma = sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
-            double new_hue = hue + t * 2.0 * M_PI + config->warmth * 0.5;
-            current_ok = (oklab){anchor.l, cos(new_hue) * chroma, sin(new_hue) * chroma};
+            if (!config->enable_color_circle) {
+                int steps = fmin(20, config->num_colors);
+                double step_t = (steps > 1) ? (double)i / (steps - 1) : 0.5;
+                current_ok = anchor;
+                current_ok.l += sin(step_t * M_PI) * 0.1 * config->lightness;
+                double new_chroma = chroma + cos(step_t * M_PI) * 0.05 * (config->chroma - 1.0);
+                current_ok.a = cos(hue) * new_chroma;
+                current_ok.b = sin(hue) * new_chroma;
+            } else {
+                double arc_rad = config->arc_length / 360.0 * 2.0 * M_PI;
+                double new_hue = hue + t * arc_rad + config->warmth * 0.5;
+                current_ok = (oklab){anchor.l, cos(new_hue) * chroma, sin(new_hue) * chroma};
+            }
         } else {
             int num_segments = (config->loop_mode == 1) ? config->num_anchors : config->num_anchors - 1;
             double segment_t = t * num_segments;
@@ -75,12 +89,11 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
         if (fabs(t - 0.5) < 0.2) {
             new_chroma *= (1.0 + config->vibrancy * 0.2 * (1.0 - fabs(t - 0.5) / 0.2));
         }
+        if (config->num_anchors > 1 && fabs(t - 0.5) < 0.05 && config->vibrancy < 0.5) {
+            new_chroma *= 1.1;
+        }
         current_ok.a = cos(current_hue) * new_chroma;
         current_ok.b = sin(current_hue) * new_chroma;
-        if (config->num_colors > 20 && config->num_anchors > 1) {
-            int cycle = i / config->num_anchors;
-            current_ok.l += (cycle % 2 == 0 ? 1 : -1) * 0.02;
-        }
         if (config->variation_mode > 0) {
             double strength = config->variation_mode == 1 ? 0.01 : 0.03;
             current_ok.l += (random_double() - 0.5) * strength * 0.5;

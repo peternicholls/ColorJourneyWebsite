@@ -16,6 +16,10 @@ export interface DynamicsConfig {
   bezierLight?: [number, number];
   /** Bezier curve control points for chroma. Defaults to [0.5, 0.5] */
   bezierChroma?: [number, number];
+  /** Enable hue traversal after perceptual variations. Defaults to false. */
+  enableColorCircle?: boolean;
+  /** Arc degrees for color wheel extension (0-360). Defaults to 0. */
+  arcLength?: number;
 }
 export interface VariationConfig {
   mode: VariationMode;
@@ -40,5 +44,7 @@ export interface GenerateResult {
     wcagMinRatio: number;
     wcagViolations: number;
     aaaCompliant?: boolean;
+    perceptualStepCount?: number;
+    arcUsage?: number;
   };
 }

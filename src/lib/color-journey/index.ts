@@ -11,6 +11,9 @@ let isLoadingWasm = true;
 async function initWasm() {
   try {
     const response = await fetch('/assets/color_journey.wasm');
+    if (!response.ok) {
+        throw new Error(`Failed to fetch WASM module: ${response.statusText}`);
+    }
     const module = await WebAssembly.instantiateStreaming(response, {});
     wasmModule = module.instance;
     const exports = wasmModule.exports;
@@ -92,16 +95,32 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
   const rng = new SeededRNG(variation.seed);
   const [bl1, bl2] = dynamics.bezierLight || [0.5, 0.5];
   const [bc1, bc2] = dynamics.bezierChroma || [0.5, 0.5];
+  let perceptualStepCount = 0;
   for (let i = 0; i < numColors; i++) {
     let t = numColors > 1 ? i / (numColors - 1) : 0.5;
-    if (loop === 'closed' && numColors > 1) t = i / numColors;
+    if (loop === 'closed' && numColors > 1) {
+      t = i / numColors;
+      if (t >= 1) t = t - 1 + Math.sin(variation.seed) * 0.01; // Loop-back extension
+    }
     if (loop === 'ping-pong') { t *= 2; if (t > 1) t = 2 - t; }
     let currentOK: OKLabColor;
     if (okAnchors.length === 1) {
       const anchor = okAnchors[0];
-      const hue = Math.atan2(anchor.b, anchor.a), chroma = Math.sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
-      const newHue = hue + t * 2 * Math.PI + dynamics.warmth * 0.5;
-      currentOK = { l: anchor.l, a: Math.cos(newHue) * chroma, b: Math.sin(newHue) * chroma };
+      const hue = Math.atan2(anchor.b, anchor.a);
+      const chroma = Math.sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
+      if (!dynamics.enableColorCircle) {
+        perceptualStepCount = Math.min(numColors, 20);
+        const stepT = i / (perceptualStepCount - 1);
+        currentOK = { ...anchor };
+        currentOK.l += Math.sin(stepT * Math.PI) * 0.1 * dynamics.lightness;
+        const newChroma = chroma + Math.cos(stepT * Math.PI) * 0.05 * (dynamics.chroma - 1);
+        currentOK.a = Math.cos(hue) * newChroma;
+        currentOK.b = Math.sin(hue) * newChroma;
+      } else {
+        const arc = (dynamics.arcLength || 0) / 360 * 2 * Math.PI;
+        const newHue = hue + t * arc + dynamics.warmth * 0.5;
+        currentOK = { l: anchor.l, a: Math.cos(newHue) * chroma, b: Math.sin(newHue) * chroma };
+      }
     } else {
       const numSegments = loop === 'closed' ? okAnchors.length : okAnchors.length - 1;
       const segmentT = t * numSegments, segmentIdx = Math.floor(segmentT), localT = segmentT - segmentIdx;
@@ -115,16 +134,15 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     if (Math.abs(t - 0.5) < 0.2) {
       finalChroma *= (1 + dynamics.vibrancy * 0.2 * (1 - Math.abs(t - 0.5) / 0.2));
     }
-    currentOK.a = Math.cos(hue) * finalChroma; currentOK.b = Math.sin(hue) * finalChroma;
-    if (numColors > 50) {
-        currentOK.l += Math.sin(i * (variation.seed % 100) / 100) * 0.03;
-        currentOK.l = Math.max(0, Math.min(1, currentOK.l));
-    } else if (numColors > 20 && okAnchors.length > 1) {
-      const cycle = Math.floor(i / okAnchors.length);
-      currentOK.l += (cycle % 2 === 0 ? 1 : -1) * 0.02;
+    if (okAnchors.length > 1 && Math.abs(t - 0.5) < 0.05 && dynamics.vibrancy < 0.5) {
+      finalChroma *= 1.1; // Midpoint chroma guard
     }
+    currentOK.a = Math.cos(hue) * finalChroma; currentOK.b = Math.sin(hue) * finalChroma;
     if (variation.mode !== 'off') {
-      const strength = variation.mode === 'subtle' ? 0.01 : 0.03;
+      let strength = variation.mode === 'subtle' ? 0.01 : 0.03;
+      if (i > 0 && deltaEOK(palette[i - 1].ok, currentOK) < (dynamics.contrast * 0.1)) {
+        strength *= 0.8; // Clamp variation if it violates contrast
+      }
       currentOK.l += (rng.next() - 0.5) * strength * 0.5;
       currentOK.a += (rng.next() - 0.5) * strength;
       currentOK.b += (rng.next() - 0.5) * strength;
@@ -144,7 +162,7 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     }
   }
   palette.forEach(p => { p.rgb = oklabToSrgb(p.ok); p.hex = rgbToHex(p.rgb); });
-  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false };
+  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false, perceptualStepCount: 0, arcUsage: 0 };
   const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
   for (let i = 0; i < palette.length; i++) {
     if (i > 0) {
@@ -162,12 +180,12 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
   if (diagnostics.wcagMinRatio >= 7) {
     diagnostics.aaaCompliant = true;
   }
+  diagnostics.perceptualStepCount = perceptualStepCount;
+  diagnostics.arcUsage = dynamics.enableColorCircle ? (numColors > 1 ? (numColors - 1) / (numColors - 1) : 0) * ((dynamics.arcLength || 0) / 360) : 0;
   return { palette, config, diagnostics };
 }
 export const ColorJourneyEngine = {
   generate: async (config: ColorJourneyConfig): Promise<GenerateResult> => {
-    // For Phase 1, always use TS. WASM path is for Phase 2.
-    // In a real Phase 2, we would use the wasmApi if available.
     return generatePaletteTS(config);
   },
   isWasmReady: () => !!wasmApi,
