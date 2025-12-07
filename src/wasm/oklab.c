@@ -1,6 +1,5 @@
 #include "oklab.h"
-#include <string.h> // For strcmp
-#include <math.h>
+#include <string.h> // For memcpy
 // --- sRGB <-> Linear sRGB ---
 static double srgb_to_linear(double c) {
     return c > 0.04045 ? pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
@@ -9,41 +8,31 @@ static double linear_to_srgb(double c) {
     return c > 0.0031308 ? 1.055 * pow(c, 1.0 / 2.4) - 0.055 : 12.92 * c;
 }
 // --- Matrix Constants ---
+// sRGB to XYZ D65
 static const double M1[3][3] = {
     {0.4122214708, 0.5363325363, 0.0514459929},
     {0.2119034982, 0.6806995451, 0.1073969566},
     {0.0883024619, 0.2817188376, 0.6299787005},
 };
+// LMS to OKLab
 static const double M2[3][3] = {
     {+0.2104542553, +0.7936177850, -0.0040720468},
     {+1.9779984951, -2.4285922050, +0.4505937099},
     {+0.0259040371, +0.7827717662, -0.8086757660},
 };
+// OKLab to LMS
 static const double M2_INV[3][3] = {
     {1.0, +0.3963377774, +0.2158037573},
     {1.0, -0.1055613458, -0.0638541728},
     {1.0, -0.0894841775, -1.2914855480},
 };
+// XYZ D65 to sRGB
 static const double M1_INV[3][3] = {
     {+4.0767416621, -3.3077115913, +0.2309699292},
     {-1.2684380046, +2.6097574011, -0.3413193965},
     {-0.0041960863, -0.7034186147, +1.7076147010},
 };
 // --- Core Conversion Functions ---
-static linear_srgb oklab_to_linear_srgb(oklab c) {
-    double l_ = c.l + M2_INV[0][1] * c.a + M2_INV[0][2] * c.b;
-    double m_ = c.l + M2_INV[1][1] * c.a + M2_INV[1][2] * c.b;
-    double s_ = c.l + M2_INV[2][1] * c.a + M2_INV[2][2] * c.b;
-    double l = l_ * l_ * l_;
-    double m = m_ * m_ * m_;
-    double s = s_ * s_ * s_;
-    linear_srgb result = {
-        M1_INV[0][0] * l + M1_INV[0][1] * m + M1_INV[0][2] * s,
-        M1_INV[1][0] * l + M1_INV[1][1] * m + M1_INV[1][2] * s,
-        M1_INV[2][0] * l + M1_INV[2][1] * m + M1_INV[2][2] * s
-    };
-    return result;
-}
 oklab srgb_to_oklab(srgb_u8 rgb) {
     linear_srgb lin_rgb = {
         srgb_to_linear(rgb.r / 255.0),
@@ -63,14 +52,27 @@ oklab srgb_to_oklab(srgb_u8 rgb) {
     };
     return result;
 }
+static linear_srgb oklab_to_linear_srgb(oklab c) {
+    double l_ = c.l + M2_INV[0][1] * c.a + M2_INV[0][2] * c.b;
+    double m_ = c.l + M2_INV[1][1] * c.a + M2_INV[1][2] * c.b;
+    double s_ = c.l + M2_INV[2][1] * c.a + M2_INV[2][2] * c.b;
+    double l = l_ * l_ * l_;
+    double m = m_ * m_ * m_;
+    double s = s_ * s_ * s_;
+    linear_srgb result = {
+        M1_INV[0][0] * l + M1_INV[0][1] * m + M1_INV[0][2] * s,
+        M1_INV[1][0] * l + M1_INV[1][1] * m + M1_INV[1][2] * s,
+        M1_INV[2][0] * l + M1_INV[2][1] * m + M1_INV[2][2] * s
+    };
+    return result;
+}
 // --- Gamut Clipping ---
+// Finds the intersection of the line from a to b with the sRGB gamut cube
 static double find_gamut_intersection(oklab a, oklab b) {
     double t = 1.0;
     for (int i = 0; i < 3; ++i) {
-        linear_srgb la = oklab_to_linear_srgb(a);
-        linear_srgb lb = oklab_to_linear_srgb(b);
-        double c1 = la.v[i];
-        double c2 = lb.v[i];
+        double c1 = oklab_to_linear_srgb(a).v[i];
+        double c2 = oklab_to_linear_srgb(b).v[i];
         if (c2 < 0.0) { t = fmin(t, c1 / (c1 - c2)); }
         if (c2 > 1.0) { t = fmin(t, (1.0 - c1) / (c2 - c1)); }
     }
@@ -79,8 +81,9 @@ static double find_gamut_intersection(oklab a, oklab b) {
 srgb_u8 oklab_to_srgb(oklab c) {
     linear_srgb lin_rgb = oklab_to_linear_srgb(c);
     if (lin_rgb.r < 0.0 || lin_rgb.r > 1.0 || lin_rgb.g < 0.0 || lin_rgb.g > 1.0 || lin_rgb.b < 0.0 || lin_rgb.b > 1.0) {
+        // Simple chroma reduction clipping
         double chroma = sqrt(c.a * c.a + c.b * c.b);
-        if (chroma < 1e-7) {
+        if (chroma < 1e-7) { // Almost neutral, just clamp L
             double L = fmax(0.0, fmin(1.0, c.l));
             oklab gray = {L, 0, 0};
             lin_rgb = oklab_to_linear_srgb(gray);
@@ -113,18 +116,4 @@ oklab lerp_oklab(oklab c1, oklab c2, double t) {
         c1.b * (1.0 - t) + c2.b * t
     };
     return result;
-}
-double cubic_bezier(double t, double p1, double p2) {
-    double u = 1.0 - t;
-    double tt = t * t;
-    double uu = u * u;
-    return 3.0 * uu * t * p1 + 3.0 * u * tt * p2 + tt * t;
-}
-double get_easing(const char* style, double t, double p1, double p2) {
-    if (strcmp(style, "ease-in") == 0) return cubic_bezier(t, 0.42, 0);
-    if (strcmp(style, "ease-out") == 0) return cubic_bezier(t, 0, 0.58);
-    if (strcmp(style, "sinusoidal") == 0) return 0.5 - 0.5 * cos(t * M_PI);
-    if (strcmp(style, "stepped") == 0) return floor(t * 5.0) / 4.0;
-    if (strcmp(style, "custom") == 0) return cubic_bezier(t, p1, p2);
-    return t; // linear
 }
