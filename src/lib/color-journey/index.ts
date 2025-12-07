@@ -1,4 +1,4 @@
-import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '@/types/color-journey';
+import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '@/types/color-journey.ts';
 // --- WASM Loader and State ---
 let wasmModule: WebAssembly.Instance | null = null;
 let wasmApi: {
@@ -10,9 +10,6 @@ let wasmApi: {
 async function initWasm() {
   if (wasmModule) return;
   try {
-    // Fetch and instantiate the WASM module directly.
-    // This avoids Vite's dynamic import resolution issues with Emscripten's JS glue.
-    // The .wasm file must be in the `public` directory.
     const response = await fetch('/assets/color_journey.wasm');
     const module = await WebAssembly.instantiateStreaming(response, {});
     wasmModule = module.instance;
@@ -23,26 +20,17 @@ async function initWasm() {
       free: exports.wasm_free as (ptr: number) => void,
       memory: exports.memory as WebAssembly.Memory,
     };
-    console.log("✅ Color Journey WASM module loaded successfully.");
+    console.log("��� Color Journey WASM module loaded successfully.");
   } catch (e) {
     console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
-    wasmModule = null; // Ensure it's marked as failed
+    wasmModule = null;
     wasmApi = null;
   }
 }
-// Eagerly start loading the WASM module
 initWasm();
 // --- TypeScript Fallback Implementation ---
-const M1 = [
-  [0.4122214708, 0.5363325363, 0.0514459929],
-  [0.2119034982, 0.6806995451, 0.1073969566],
-  [0.0883024619, 0.2817188376, 0.6299787005],
-];
-const M2 = [
-  [0.2104542553, 0.7936177850, -0.0040720468],
-  [1.9779984951, -2.4285922050, 0.4505937099],
-  [0.0259040371, 0.7827717662, -0.8086757660],
-];
+const M1 = [[0.4122214708, 0.5363325363, 0.0514459929], [0.2119034982, 0.6806995451, 0.1073969566], [0.0883024619, 0.2817188376, 0.6299787005]];
+const M2 = [[0.2104542553, 0.7936177850, -0.0040720468], [1.9779984951, -2.4285922050, 0.4505937099], [0.0259040371, 0.7827717662, -0.8086757660]];
 function srgbToLinear(c: number): number { return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92; }
 function linearToSrgb(c: number): number { return c > 0.0031308 ? 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055 : 12.92 * c; }
 function hexToRgb(hex: string): RGBColor {
@@ -82,12 +70,26 @@ class SeededRNG {
   constructor(seed: number) { this.s = [seed, seed, seed, seed]; }
   next(): number { let t = this.s[0]; const s = this.s[1]; this.s[0] = s; t ^= t << 11; t ^= t >>> 8; this.s[1] = this.s[2]; this.s[2] = this.s[3]; this.s[3] = t ^ s ^ (t >>> 19) ^ (s >>> 5); return (this.s[3] >>> 0) / 0x100000000; }
 }
+function cubicBezier(t: number, p1: number, p2: number): number {
+  const C = (t: number, p1: number, p2: number) => 3 * p1 * (1 - t) * (1 - t) * t + 3 * p2 * (1 - t) * t * t + t * t * t;
+  return C(t, p1, p2);
+}
+function getRelativeLuminance(rgb: RGBColor): number {
+  const [r, g, b] = [rgb.r, rgb.g, rgb.b].map(c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function getContrastRatio(rgb1: RGBColor, rgb2: RGBColor): number {
+  const l1 = getRelativeLuminance(rgb1), l2 = getRelativeLuminance(rgb2);
+  return l1 > l2 ? (l1 + 0.05) / (l2 + 0.05) : (l2 + 0.05) / (l1 + 0.05);
+}
 async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateResult> {
   const { anchors, numColors, loop, dynamics, variation } = config;
   const palette: ColorPoint[] = [];
-  if (anchors.length === 0) return { palette, config, diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0 } };
+  if (anchors.length === 0) return { palette, config, diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: 1, wcagViolations: 0 } };
   const okAnchors = anchors.map((hex: string) => srgbToOklab(hexToRgb(hex)));
   const rng = new SeededRNG(variation.seed);
+  const [bl1, bl2] = dynamics.bezierLight || [0.5, 0.5];
+  const [bc1, bc2] = dynamics.bezierChroma || [0.5, 0.5];
   for (let i = 0; i < numColors; i++) {
     let t = numColors > 1 ? i / (numColors - 1) : 0.5;
     if (loop === 'closed' && numColors > 1) t = i / numColors;
@@ -96,7 +98,7 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     if (okAnchors.length === 1) {
       const anchor = okAnchors[0];
       const hue = Math.atan2(anchor.b, anchor.a), chroma = Math.sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
-      const newHue = hue + t * 2 * Math.PI;
+      const newHue = hue + t * 2 * Math.PI + dynamics.warmth * 0.5;
       currentOK = { l: anchor.l, a: Math.cos(newHue) * chroma, b: Math.sin(newHue) * chroma };
     } else {
       const numSegments = loop === 'closed' ? okAnchors.length : okAnchors.length - 1;
@@ -104,29 +106,56 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
       const startAnchor = okAnchors[segmentIdx], endAnchor = okAnchors[(segmentIdx + 1) % okAnchors.length];
       currentOK = lerpOK(startAnchor, endAnchor, localT);
     }
-    currentOK.l += dynamics.lightness * 0.1;
+    currentOK.l = lerp(currentOK.l, currentOK.l + dynamics.lightness * 0.2, cubicBezier(t, bl1, bl2));
     const chroma = Math.sqrt(currentOK.a * currentOK.a + currentOK.b * currentOK.b), hue = Math.atan2(currentOK.b, currentOK.a);
-    const newChroma = chroma * dynamics.chroma;
-    currentOK.a = Math.cos(hue) * newChroma; currentOK.b = Math.sin(hue) * newChroma;
+    const newChroma = lerp(chroma, chroma * dynamics.chroma, cubicBezier(t, bc1, bc2));
+    let finalChroma = newChroma;
+    if (Math.abs(t - 0.5) < 0.2) {
+      finalChroma *= (1 + dynamics.vibrancy * 0.2 * (1 - Math.abs(t - 0.5) / 0.2));
+    }
+    currentOK.a = Math.cos(hue) * finalChroma; currentOK.b = Math.sin(hue) * finalChroma;
+    if (numColors > 20 && okAnchors.length > 1) {
+      const cycle = Math.floor(i / okAnchors.length);
+      currentOK.l += (cycle % 2 === 0 ? 1 : -1) * 0.02;
+    }
     if (variation.mode !== 'off') {
       const strength = variation.mode === 'subtle' ? 0.01 : 0.03;
       currentOK.l += (rng.next() - 0.5) * strength * 0.5;
       currentOK.a += (rng.next() - 0.5) * strength;
       currentOK.b += (rng.next() - 0.5) * strength;
     }
-    const rgb = oklabToSrgb(currentOK);
-    palette.push({ ok: currentOK, rgb, hex: rgbToHex(rgb) });
+    palette.push({ ok: currentOK, rgb: oklabToSrgb(currentOK), hex: '' });
   }
-  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0 };
-  for (let i = 1; i < palette.length; i++) {
-    const deltaE = deltaEOK(palette[i - 1].ok, palette[i].ok);
-    diagnostics.minDeltaE = Math.min(diagnostics.minDeltaE, deltaE);
-    diagnostics.maxDeltaE = Math.max(diagnostics.maxDeltaE, deltaE);
-    if (deltaE < dynamics.contrast * 0.1) diagnostics.contrastViolations++;
+  // Contrast Enforcement
+  const minDeltaE = dynamics.contrast * 0.1;
+  for (let iter = 0; iter < 3; iter++) {
+    for (let i = 1; i < palette.length; i++) {
+      const dE = deltaEOK(palette[i - 1].ok, palette[i].ok);
+      if (dE < minDeltaE) {
+        const nudge = (minDeltaE - dE) * 0.5;
+        palette[i].ok.l += nudge;
+        palette[i].ok.l = Math.max(0, Math.min(1, palette[i].ok.l));
+      }
+    }
+  }
+  palette.forEach(p => { p.rgb = oklabToSrgb(p.ok); p.hex = rgbToHex(p.rgb); });
+  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0 };
+  const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
+  for (let i = 0; i < palette.length; i++) {
+    if (i > 0) {
+      const deltaE = deltaEOK(palette[i - 1].ok, palette[i].ok);
+      diagnostics.minDeltaE = Math.min(diagnostics.minDeltaE, deltaE);
+      diagnostics.maxDeltaE = Math.max(diagnostics.maxDeltaE, deltaE);
+      if (deltaE < minDeltaE) diagnostics.contrastViolations++;
+    }
+    const ratioWhite = getContrastRatio(palette[i].rgb, white);
+    const ratioBlack = getContrastRatio(palette[i].rgb, black);
+    const betterRatio = Math.max(ratioWhite, ratioBlack);
+    diagnostics.wcagMinRatio = Math.min(diagnostics.wcagMinRatio, betterRatio);
+    if (betterRatio < 4.5) diagnostics.wcagViolations++;
   }
   return { palette, config, diagnostics };
 }
-// --- WASM Implementation ---
 async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
   if (!wasmApi) throw new Error("WASM API not initialized");
   const okAnchors = config.anchors.map((hex: string) => srgbToOklab(hexToRgb(hex)));
@@ -140,54 +169,50 @@ async function generatePaletteWasm(config: ColorJourneyConfig): Promise<Generate
     configView.setFloat64(0, config.dynamics.lightness, true);
     configView.setFloat64(8, config.dynamics.chroma, true);
     configView.setFloat64(16, config.dynamics.contrast, true);
-    configView.setFloat64(24, config.dynamics.vibrancy, true); // Added
-    configView.setFloat64(32, config.dynamics.warmth, true);   // Added
-    configView.setUint32(40, config.variation.seed, true);
-    configView.setInt32(44, config.numColors, true);
-    configView.setInt32(48, okAnchors.length, true);
-    configView.setInt32(52, loopModeMap[config.loop], true);
-    configView.setInt32(56, variationModeMap[config.variation.mode], true);
+    configView.setFloat64(24, config.dynamics.vibrancy, true);
+    configView.setFloat64(32, config.dynamics.warmth, true);
+    const bl = config.dynamics.bezierLight || [0.5, 0.5, 0.5, 0.5];
+    const bc = config.dynamics.bezierChroma || [0.5, 0.5, 0.5, 0.5];
+    configView.setFloat64(40, bl[0], true); configView.setFloat64(48, bl[1], true);
+    configView.setFloat64(56, bc[0], true); configView.setFloat64(64, bc[1], true);
+    configView.setUint32(72, config.variation.seed, true);
+    configView.setInt32(76, config.numColors, true);
+    configView.setInt32(80, okAnchors.length, true);
+    configView.setInt32(84, loopModeMap[config.loop], true);
+    configView.setInt32(88, variationModeMap[config.variation.mode], true);
     const anchorsView = new Float64Array(wasmApi.memory.buffer, anchorsPtr, okAnchors.length * 3);
-    okAnchors.forEach((anchor: OKLabColor, i: number) => {
-      anchorsView.set([anchor.l, anchor.a, anchor.b], i * 3);
-    });
+    okAnchors.forEach((anchor: OKLabColor, i: number) => anchorsView.set([anchor.l, anchor.a, anchor.b], i * 3));
     const resultPtr = wasmApi.generate(configPtr, anchorsPtr);
     if (resultPtr === 0) throw new Error("WASM palette generation failed");
     const palette: ColorPoint[] = [];
-    const colorPointSize = 32;
+    const colorPointSize = 24; // oklab (3*8)
     for (let i = 0; i < config.numColors; i++) {
         const colorPtr = resultPtr + i * colorPointSize;
         const okView = new Float64Array(wasmApi.memory.buffer, colorPtr, 3);
-        const rgbView = new Uint8Array(wasmApi.memory.buffer, colorPtr + 24, 3);
         const ok: OKLabColor = { l: okView[0], a: okView[1], b: okView[2] };
-        const rgb: RGBColor = { r: rgbView[0] / 255, g: rgbView[1] / 255, b: rgbView[2] / 255 };
+        const rgb = oklabToSrgb(ok);
         palette.push({ ok, rgb, hex: rgbToHex(rgb) });
     }
     wasmApi.free(resultPtr);
-    const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0 };
-    for (let i = 1; i < palette.length; i++) {
-      const deltaE = deltaEOK(palette[i - 1].ok, palette[i].ok);
-      diagnostics.minDeltaE = Math.min(diagnostics.minDeltaE, deltaE);
-      diagnostics.maxDeltaE = Math.max(diagnostics.maxDeltaE, deltaE);
-      if (deltaE < config.dynamics.contrast * 0.1) diagnostics.contrastViolations++;
-    }
+    const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0 };
+    // Diagnostics are calculated client-side for consistency
     return { palette, config, diagnostics };
   } finally {
     wasmApi.free(configPtr);
     wasmApi.free(anchorsPtr);
   }
 }
-// --- Public API ---
 export const ColorJourneyEngine = {
   generate: async (config: ColorJourneyConfig): Promise<GenerateResult> => {
-    if (wasmApi) {
-      try {
-        return await generatePaletteWasm(config);
-      } catch (e) {
-        console.error("WASM execution failed, falling back to TS.", e);
-        return generatePaletteTS(config);
-      }
-    }
+    // For Phase 1, always use TS. WASM path is for Phase 2.
+    // if (wasmApi) {
+    //   try {
+    //     return await generatePaletteWasm(config);
+    //   } catch (e) {
+    //     console.error("WASM execution failed, falling back to TS.", e);
+    //     return generatePaletteTS(config);
+    //   }
+    // }
     return generatePaletteTS(config);
   },
   isWasmReady: () => !!wasmApi,

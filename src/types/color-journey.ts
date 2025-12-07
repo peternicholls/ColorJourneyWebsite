@@ -4,12 +4,16 @@ export type ColorPoint = { ok: OKLabColor; rgb: RGBColor; hex: string };
 export type LoopMode = 'open' | 'closed' | 'ping-pong';
 export type GranularityMode = 'continuous' | 'discrete';
 export type VariationMode = 'off' | 'subtle' | 'noticeable';
+export type BiasPreset = 'neutral' | 'lighter' | 'darker' | 'muted' | 'vivid' | 'warm' | 'cool';
 export interface DynamicsConfig {
   lightness: number; // -1 to 1 (darker to lighter)
   chroma: number; // 0 to 2 (muted to vivid)
   contrast: number; // 0 to 1 (low to high)
   vibrancy: number; // 0 to 1 (midpoint boost)
   warmth: number; // -1 to 1 (cool to warm)
+  biasPreset?: BiasPreset;
+  bezierLight?: [number, number, number, number];
+  bezierChroma?: [number, number, number, number];
 }
 export interface VariationConfig {
   mode: VariationMode;
@@ -30,5 +34,7 @@ export interface GenerateResult {
     minDeltaE: number;
     maxDeltaE: number;
     contrastViolations: number;
+    wcagMinRatio: number;
+    wcagViolations: number;
   };
 }

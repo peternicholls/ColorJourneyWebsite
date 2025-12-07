@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #define EXPORT EMSCRIPTEN_KEEPALIVE
@@ -13,6 +14,10 @@ typedef struct {
     double lightness;
     double chroma;
     double contrast;
+    double vibrancy;
+    double warmth;
+    double bezier_light[2];
+    double bezier_chroma[2];
     uint32_t seed;
     int num_colors;
     int num_anchors;
@@ -25,69 +30,57 @@ typedef struct {
 } CJ_ColorPoint;
 // --- Helper Functions ---
 static uint32_t rng_state;
-void seed_rng(uint32_t seed) {
-    rng_state = seed == 0 ? 1 : seed;
-}
+void seed_rng(uint32_t seed) { rng_state = seed == 0 ? 1 : seed; }
 uint32_t xorshift32() {
     uint32_t x = rng_state;
-    x ^= x << 13;
-    x ^= x >> 17;
-    x ^= x << 5;
-    rng_state = x;
-    return x;
+    x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+    return rng_state = x;
 }
-double random_double() {
-    return (double)xorshift32() / UINT32_MAX;
+double random_double() { return (double)xorshift32() / UINT32_MAX; }
+double cubic_bezier(double t, double p1, double p2) {
+    double u = 1.0 - t;
+    return 3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t;
 }
 // --- Core API ---
 EXPORT
 CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
-    if (config->num_colors <= 0 || config->num_anchors <= 0) {
-        return NULL;
-    }
+    if (config->num_colors <= 0 || config->num_anchors <= 0) return NULL;
     CJ_ColorPoint* palette = (CJ_ColorPoint*)malloc(sizeof(CJ_ColorPoint) * config->num_colors);
-    if (!palette) {
-        return NULL;
-    }
+    if (!palette) return NULL;
     seed_rng(config->seed);
     for (int i = 0; i < config->num_colors; ++i) {
-        double t = 0.5;
-        if (config->loop_mode == 1) { // Closed loop
-             t = (config->num_colors > 0) ? (double)i / config->num_colors : 0.0;
-        } else { // Open or Ping-Pong
-             t = (config->num_colors > 1) ? (double)i / (config->num_colors - 1) : 0.5;
-        }
-        if (config->loop_mode == 2) { // Ping-Pong
-            t = t * 2.0;
-            if (t > 1.0) t = 2.0 - t;
-        }
+        double t = (config->loop_mode == 1) ? ((double)i / config->num_colors) : ((config->num_colors > 1) ? (double)i / (config->num_colors - 1) : 0.5);
+        if (config->loop_mode == 2) { t *= 2.0; if (t > 1.0) t = 2.0 - t; }
         oklab current_ok;
         if (config->num_anchors == 1) {
             oklab anchor = anchors[0];
             double hue = atan2(anchor.b, anchor.a);
             double chroma = sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
-            double new_hue = hue + t * 2.0 * M_PI;
-            current_ok.l = anchor.l;
-            current_ok.a = cos(new_hue) * chroma;
-            current_ok.b = sin(new_hue) * chroma;
+            double new_hue = hue + t * 2.0 * M_PI + config->warmth * 0.5;
+            current_ok = (oklab){anchor.l, cos(new_hue) * chroma, sin(new_hue) * chroma};
         } else {
             int num_segments = (config->loop_mode == 1) ? config->num_anchors : config->num_anchors - 1;
             double segment_t = t * num_segments;
-            int segment_idx = (int)floor(segment_t);
-            if (segment_idx >= num_segments) segment_idx = num_segments - 1;
+            int segment_idx = fmin(num_segments - 1, floor(segment_t));
             double local_t = segment_t - segment_idx;
-            oklab start_anchor = anchors[segment_idx];
-            oklab end_anchor = anchors[(segment_idx + 1) % config->num_anchors];
-            current_ok = lerp_oklab(start_anchor, end_anchor, local_t);
+            current_ok = lerp_oklab(anchors[segment_idx], anchors[(segment_idx + 1) % config->num_anchors], local_t);
         }
         // Apply Dynamics
-        current_ok.l += config->lightness * 0.1;
+        double eased_l = cubic_bezier(t, config->bezier_light[0], config->bezier_light[1]);
+        double eased_c = cubic_bezier(t, config->bezier_chroma[0], config->bezier_chroma[1]);
+        current_ok.l = current_ok.l * (1.0 - eased_l) + (current_ok.l + config->lightness * 0.2) * eased_l;
         double current_chroma = sqrt(current_ok.a * current_ok.a + current_ok.b * current_ok.b);
         double current_hue = atan2(current_ok.b, current_ok.a);
-        double new_chroma = current_chroma * config->chroma;
+        double new_chroma = current_chroma * (1.0 - eased_c) + (current_chroma * config->chroma) * eased_c;
+        if (fabs(t - 0.5) < 0.2) {
+            new_chroma *= (1.0 + config->vibrancy * 0.2 * (1.0 - fabs(t - 0.5) / 0.2));
+        }
         current_ok.a = cos(current_hue) * new_chroma;
         current_ok.b = sin(current_hue) * new_chroma;
-        // Apply Variation
+        if (config->num_colors > 20 && config->num_anchors > 1) {
+            int cycle = i / config->num_anchors;
+            current_ok.l += (cycle % 2 == 0 ? 1 : -1) * 0.02;
+        }
         if (config->variation_mode > 0) {
             double strength = config->variation_mode == 1 ? 0.01 : 0.03;
             current_ok.l += (random_double() - 0.5) * strength * 0.5;
@@ -95,27 +88,24 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
             current_ok.b += (random_double() - 0.5) * strength;
         }
         palette[i].ok = current_ok;
-        palette[i].rgb = oklab_to_srgb(current_ok);
     }
-    // Contrast Enforcement (simple nudge)
+    // Contrast Enforcement
     double min_contrast = config->contrast * 0.1;
-    for (int k = 0; k < 2; ++k) { // Iterate twice for stability
+    for (int k = 0; k < 3; ++k) {
         for (int i = 1; i < config->num_colors; ++i) {
             double dE = delta_e_ok(palette[i-1].ok, palette[i].ok);
             if (dE < min_contrast) {
-                double diff = min_contrast - dE;
-                palette[i].ok.l += diff * 0.1; // Nudge lightness
-                palette[i].rgb = oklab_to_srgb(palette[i].ok);
+                double nudge = (min_contrast - dE) * 0.5;
+                palette[i].ok.l = fmax(0.0, fmin(1.0, palette[i].ok.l + nudge));
             }
         }
+    }
+    for (int i = 0; i < config->num_colors; ++i) {
+        palette[i].rgb = oklab_to_srgb(palette[i].ok);
     }
     return palette;
 }
 EXPORT
-void* wasm_malloc(size_t size) {
-    return malloc(size);
-}
+void* wasm_malloc(size_t size) { return malloc(size); }
 EXPORT
-void wasm_free(void* ptr) {
-    free(ptr);
-}
+void wasm_free(void* ptr) { free(ptr); }

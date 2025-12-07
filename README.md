@@ -6,11 +6,13 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 - **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast.
 - **High-Performance C Core**: Core logic written in C and compiled to WebAssembly for near-native performance in the browser and on the edge.
 - **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load.
-- **Journey Routes**: Single or multi-anchor (2���5) color paths with designed non-linear pacing and easing curves.
+- **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves.
 - **Perceptual Dynamics**: High-level controls for lightness bias, chroma multiplier, contrast enforcement (minimum OKLab ΔE), and more.
+- **Perceptual Enforcement**: Iterative ΔE nudges ensure minimum color separation with adaptive reuse for large palettes.
+- **Advanced Dynamics**: Bezier curves for path shaping, preset biases, and midpoint vibrancy boosts.
 - **Granularity Modes**: Continuous gradients or discrete quantized palettes with patterned reuse for large sets.
 - **Seeded Variation Layer**: Optional subtle, structured perturbations for an organic feel, with deterministic outputs via a seed.
-- **Interactive Playground**: Real-time previews, diagnostics (ΔE metrics), presets, and exports (CSS variables, JSON).
+- **Interactive Playground**: Real-time previews, diagnostics (ΔE metrics, WCAG contrast), presets, and exports (CSS variables, JSON).
 - **Edge API**: Cloudflare Worker endpoint for server-side generation, ensuring consistent results across platforms.
 ## Tech Stack
 - **Frontend**: React 18, React Router 6, TypeScript, Vite
@@ -59,7 +61,8 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     The edge API will be at `http://localhost:8787/api/color-journey`.
 ## Usage Notes
 - **WASM Build**: Run `./build-wasm.sh` after emsdk activation; files go to `public/assets`. Vite serves from there. If the WASM build is missing or fails to load, the app gracefully falls back to the TypeScript engine with full functionality.
-- **API**: `POST /api/color-journey` with a JSON config body. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP.
+- **API**: `POST /api/color-journey` with a JSON config body. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP. Diagnostics now include WCAG contrast ratios for text/large text compliance.
+- **UI**: Bias presets auto-configure dynamics; Bezier inputs allow custom easing (defaults: linear).
 - **Pages**: The application is split into three main pages:
     - `/`: The main interactive Playground.
     - `/presets`: A page to save, load, and manage custom presets in `localStorage`.

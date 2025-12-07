@@ -7,28 +7,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { GenerateResult, RGBColor } from '@/types/color-journey';
+import { GenerateResult } from '@/types/color-journey.ts';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
 }
-// --- WCAG Contrast Calculation ---
-function getRelativeLuminance(rgb: RGBColor): number {
-  const [r, g, b] = [rgb.r, rgb.g, rgb.b].map(c => {
-    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-function getContrastRatio(rgb1: RGBColor, rgb2: RGBColor): number {
-  const l1 = getRelativeLuminance(rgb1);
-  const l2 = getRelativeLuminance(rgb2);
-  return l1 > l2 ? (l1 + 0.05) / (l2 + 0.05) : (l2 + 0.05) / (l1 + 0.05);
-}
-const ContrastBadge = ({ ratio }: { ratio: number }) => {
-  if (ratio >= 7) return <Badge variant="default" className="bg-green-600 hover:bg-green-700">AAA</Badge>;
-  if (ratio >= 4.5) return <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">AA</Badge>;
+const WcagBadge = ({ ratio }: { ratio: number }) => {
+  if (ratio >= 7) return <Badge className="bg-green-600 hover:bg-green-700">AAA</Badge>;
+  if (ratio >= 4.5) return <Badge className="bg-blue-600 hover:bg-blue-700">AA</Badge>;
   if (ratio >= 3) return <Badge variant="secondary">AA Large</Badge>;
   return <Badge variant="destructive">Fail</Badge>;
 };
@@ -42,16 +30,7 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
   const gradientCss = result?.palette
     ? `linear-gradient(to right, ${result.palette.map(p => p.hex).join(', ')})`
     : 'linear-gradient(to right, #eee, #ddd)';
-  const contrastRatios = React.useMemo(() => {
-    if (!result || result.palette.length < 2) return [];
-    const ratios = [];
-    for (let i = 1; i < result.palette.length; i++) {
-      ratios.push(getContrastRatio(result.palette[i - 1].rgb, result.palette[i].rgb));
-    }
-    return ratios;
-  }, [result]);
-  const minRatio = contrastRatios.length > 0 ? Math.min(...contrastRatios) : 0;
-  const minRatioDisplay = contrastRatios.length > 0 ? minRatio.toFixed(2) : 'N/A';
+  const diagnostics = result?.diagnostics;
   return (
     <div className="space-y-8">
       <Card>
@@ -79,7 +58,7 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
           <CardDescription>Individually generated colors from the journey.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-4">
             {isLoading && Array.from({ length: 16 }).map((_, i) => (
               <Skeleton key={i} className="w-full aspect-square rounded-md" />
             ))}
@@ -124,15 +103,26 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
             <TableBody>
               <TableRow>
                 <TableCell>Min. Perceptual Distance (ΔE)</TableCell>
-                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : result?.diagnostics.minDeltaE.toFixed(3) ?? 'N/A'}</TableCell>
+                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.minDeltaE.toFixed(3) ?? 'N/A'}</TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>Min. Contrast Ratio (WCAG)</TableCell>
-                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : minRatioDisplay}</TableCell>
+                <TableCell>Min. WCAG Ratio (vs black/white)</TableCell>
+                <TableCell className="text-right font-mono flex items-center justify-end gap-2">
+                  {isLoading ? <Skeleton className="h-5 w-16" /> : diagnostics?.wcagMinRatio.toFixed(2) ?? 'N/A'}
+                  {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} />}
+                </TableCell>
               </TableRow>
               <TableRow>
-                <TableCell>Adjacent Contrast Check</TableCell>
-                <TableCell className="text-right">{isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (contrastRatios.length > 0 && minRatio >= 4.5 ? <span className="flex items-center justify-end gap-2 text-green-600"><Check className="h-4 w-4" /> All Pass (AA)</span> : <span className="flex items-center justify-end gap-2 text-amber-600"><AlertTriangle className="h-4 w-4" /> Some Fail</span>)}</TableCell>
+                <TableCell>WCAG AA Violations</TableCell>
+                <TableCell className="text-right">
+                  {isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (
+                    diagnostics && (diagnostics.wcagViolations === 0 ? (
+                      <span className="flex items-center justify-end gap-2 text-green-600"><Check className="h-4 w-4" /> All Pass (AA)</span>
+                    ) : (
+                      <span className="flex items-center justify-end gap-2 text-amber-600"><AlertTriangle className="h-4 w-4" /> {diagnostics.wcagViolations} Failures</span>
+                    ))
+                  )}
+                </TableCell>
               </TableRow>
             </TableBody>
           </Table>
