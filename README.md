@@ -109,3 +109,5 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
     ```
     Wrangler automatically bundles all static assets from the output directory (including the `.wasm` file) and the Worker script. Ensure `public/assets` contains the WASM files post-build for optimal performance.
 [cloudflarebutton]
+---
+**Copyright © 2025 Peter Nicholls.** This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
