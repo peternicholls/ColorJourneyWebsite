@@ -150,6 +150,27 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
                   )}
                 </TableCell>
               </motion.tr>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
+                <TableCell>Curve Applied</TableCell>
+                <TableCell className="text-right font-mono flex items-center justify-end gap-2">
+                  {isLoading ? <Skeleton className="h-5 w-24" /> : (
+                    diagnostics?.curveApplied ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="secondary" className={diagnostics.curveApplied.style === 'custom' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}>
+                              {diagnostics.curveApplied.style}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Applied non-linear pacing: {diagnostics.curveApplied.style} to [{diagnostics.curveApplied.dimensions.join(', ')}] at {Math.round(diagnostics.curveApplied.strength * 100)}% strength.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : 'N/A'
+                  )}
+                </TableCell>
+              </motion.tr>
             </TableBody>
           </Table>
           <div className="flex flex-col sm:flex-row gap-4 pt-4">

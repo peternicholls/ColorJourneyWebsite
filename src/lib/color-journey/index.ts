@@ -1,4 +1,4 @@
-import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint } from '../../types/color-journey';
+import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint, CurveStyle, CurveDimension } from '../../types/color-journey';
 // --- WASM Loader and State ---
 let wasmModule: WebAssembly.Instance | null = null;
 let wasmApi: {
@@ -23,7 +23,7 @@ async function initWasm() {
       free: exports.wasm_free as (ptr: number) => void,
       memory: exports.memory as WebAssembly.Memory,
     };
-    console.log("���� Color Journey WASM module loaded successfully.");
+    console.log("🎨 Color Journey WASM module loaded successfully.");
   } catch (e) {
     console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
     wasmModule = null;
@@ -93,66 +93,87 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
   if (anchors.length === 0) return { palette, config, diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: 1, wcagViolations: 0 } };
   const okAnchors = anchors.map((hex: string) => srgbToOklab(hexToRgb(hex)));
   const rng = new SeededRNG(variation.seed);
-  const [bl1, bl2] = dynamics.bezierLight || [0.5, 0.5];
-  const [bc1, bc2] = dynamics.bezierChroma || [0.5, 0.5];
   let perceptualStepCount = 0;
   for (let i = 0; i < numColors; i++) {
     let t = numColors > 1 ? i / (numColors - 1) : 0.5;
-    let segmentLocalT = t;
-    if (loop === 'closed' && numColors > 1) {
-      t = i / numColors;
-      if (t >= 1) t = t - 1 + Math.sin(variation.seed) * 0.01; // Loop-back extension
-    }
+    if (loop === 'closed' && numColors > 1) t = i / numColors;
     if (loop === 'ping-pong') { t *= 2; if (t > 1) t = 2 - t; }
     let currentOK: OKLabColor;
-    if (okAnchors.length === 1) {
-      const anchor = okAnchors[0];
-      const hue = Math.atan2(anchor.b, anchor.a);
-      const chroma = Math.sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
-      if (!dynamics.enableColorCircle) {
+    let segmentLocalT = t;
+    if (anchors.length > 1) {
+      const numSegments = loop === 'closed' ? okAnchors.length : okAnchors.length - 1;
+      const segmentT = t * numSegments;
+      const segmentIdx = Math.min(Math.floor(segmentT), numSegments - 1);
+      segmentLocalT = segmentT - segmentIdx;
+      const startAnchor = okAnchors[segmentIdx];
+      const endAnchor = okAnchors[(segmentIdx + 1) % okAnchors.length];
+      currentOK = lerpOK(startAnchor, endAnchor, segmentLocalT);
+    } else {
+      currentOK = { ...okAnchors[0] };
+    }
+    // --- Easing and Dynamics ---
+    const getEasedT = (localT: number, style: CurveStyle = 'linear', bezier: [number, number] = [0.5, 0.5]): number => {
+      switch (style) {
+        case 'ease-in': return cubicBezier(localT, 0.42, 0);
+        case 'ease-out': return cubicBezier(localT, 0, 0.58);
+        case 'sinusoidal': return 0.5 - 0.5 * Math.cos(localT * Math.PI);
+        case 'stepped': return Math.floor(localT * 5) / 4; // 5 steps
+        case 'custom': return cubicBezier(localT, bezier[0], bezier[1]);
+        case 'linear':
+        default: return localT;
+      }
+    };
+    const easedT = getEasedT(segmentLocalT, dynamics.curveStyle, dynamics.bezierLight);
+    const strength = dynamics.curveStrength ?? 1.0;
+    const dims = dynamics.curveDimensions || ['all'];
+    const applyL = dims.includes('L') || dims.includes('all');
+    const applyC = dims.includes('C') || dims.includes('all');
+    const applyH = dims.includes('H') || dims.includes('all');
+    const baseChroma = Math.sqrt(currentOK.a * currentOK.a + currentOK.b * currentOK.b);
+    let baseHue = Math.atan2(currentOK.b, currentOK.a);
+    // Apply lightness
+    if (applyL) {
+      const lightnessMod = lerp(0, dynamics.lightness * 0.2, easedT * strength);
+      currentOK.l += lightnessMod;
+    } else {
+      currentOK.l += dynamics.lightness * 0.2 * segmentLocalT;
+    }
+    // Apply chroma
+    let finalChroma = baseChroma;
+    if (applyC) {
+      finalChroma = lerp(baseChroma, baseChroma * dynamics.chroma, easedT * strength);
+    } else {
+      finalChroma = lerp(baseChroma, baseChroma * dynamics.chroma, segmentLocalT);
+    }
+    // Apply hue (single anchor only)
+    if (anchors.length === 1) {
+      if (dynamics.enableColorCircle) {
+        const arc = (dynamics.arcLength || 0) / 360 * 2 * Math.PI;
+        const hueMod = applyH ? easedT * strength : t;
+        baseHue += hueMod * arc + dynamics.warmth * 0.5;
+      } else {
         perceptualStepCount = Math.min(numColors, 20);
         const stepT = perceptualStepCount > 1 ? i / (perceptualStepCount - 1) : 0.5;
-        segmentLocalT = stepT;
-        currentOK = { ...anchor };
         currentOK.l += Math.sin(stepT * Math.PI) * 0.1 * dynamics.lightness;
-        const newChroma = chroma + Math.cos(stepT * Math.PI) * 0.05 * (dynamics.chroma - 1);
-        currentOK.a = Math.cos(hue) * newChroma;
-        currentOK.b = Math.sin(hue) * newChroma;
-      } else {
-        const arc = (dynamics.arcLength || 0) / 360 * 2 * Math.PI;
-        const newHue = hue + t * arc + dynamics.warmth * 0.5;
-        currentOK = { l: anchor.l, a: Math.cos(newHue) * chroma, b: Math.sin(newHue) * chroma };
+        finalChroma += Math.cos(stepT * Math.PI) * 0.05 * (dynamics.chroma - 1);
       }
-    } else {
-      const numSegments = loop === 'closed' ? okAnchors.length : okAnchors.length - 1;
-      const segmentT = t * numSegments, segmentIdxRaw = Math.floor(segmentT), localTRaw = segmentT - segmentIdxRaw;
-      // Clamp indices for open sequences (handles t == 1 edge-case)
-      const segmentIdx = Math.min(segmentIdxRaw, Math.max(0, numSegments - 1));
-      const localT = segmentIdxRaw >= numSegments ? 1 : localTRaw;
-      segmentLocalT = localT;
-      const startAnchor = okAnchors[segmentIdx];
-      const endAnchor = loop === 'closed'
-        ? okAnchors[(segmentIdx + 1) % okAnchors.length]
-        : okAnchors[Math.min(segmentIdx + 1, okAnchors.length - 1)];
-      currentOK = lerpOK(startAnchor, endAnchor, localT);
     }
-    currentOK.l = lerp(currentOK.l, currentOK.l + dynamics.lightness * 0.2, cubicBezier(segmentLocalT, bl1, bl2));
-    const chroma = Math.sqrt(currentOK.a * currentOK.a + currentOK.b * currentOK.b), hue = Math.atan2(currentOK.b, currentOK.a);
-    const newChroma = lerp(chroma, chroma * dynamics.chroma, cubicBezier(segmentLocalT, bc1, bc2));
-    let finalChroma = newChroma;
+    // Midpoint vibrancy boost
     const proximity = Math.abs(segmentLocalT - 0.5);
     const radius = 0.35;
     const boost = 1 + dynamics.vibrancy * 0.6 * Math.max(0, 1 - proximity / radius);
     finalChroma *= boost;
-    currentOK.a = Math.cos(hue) * finalChroma; currentOK.b = Math.sin(hue) * finalChroma;
+    currentOK.a = Math.cos(baseHue) * finalChroma;
+    currentOK.b = Math.sin(baseHue) * finalChroma;
+    // Variation
     if (variation.mode !== 'off') {
-      let strength = variation.mode === 'subtle' ? 0.01 : 0.03;
+      let varStrength = variation.mode === 'subtle' ? 0.01 : 0.03;
       if (i > 0 && deltaEOK(palette[i - 1].ok, currentOK) < (dynamics.contrast * 0.1)) {
-        strength *= 0.8; // Clamp variation if it violates contrast
+        varStrength *= 0.8;
       }
-      currentOK.l += (rng.next() - 0.5) * strength * 0.5;
-      currentOK.a += (rng.next() - 0.5) * strength;
-      currentOK.b += (rng.next() - 0.5) * strength;
+      currentOK.l += (rng.next() - 0.5) * varStrength * 0.5;
+      currentOK.a += (rng.next() - 0.5) * varStrength;
+      currentOK.b += (rng.next() - 0.5) * varStrength;
     }
     palette.push({ ok: currentOK, rgb: oklabToSrgb(currentOK), hex: '' });
   }
@@ -169,7 +190,7 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     }
   }
   palette.forEach(p => { p.rgb = oklabToSrgb(p.ok); p.hex = rgbToHex(p.rgb); });
-  const diagnostics = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false, perceptualStepCount: 0, arcUsage: 0 };
+  const diagnostics: GenerateResult['diagnostics'] = { minDeltaE: Infinity, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: Infinity, wcagViolations: 0, aaaCompliant: false, perceptualStepCount: 0, arcUsage: 0 };
   const white = { r: 1, g: 1, b: 1 }, black = { r: 0, g: 0, b: 0 };
   for (let i = 0; i < palette.length; i++) {
     if (i > 0) {
@@ -184,11 +205,14 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     diagnostics.wcagMinRatio = Math.min(diagnostics.wcagMinRatio, betterRatio);
     if (betterRatio < 4.5) diagnostics.wcagViolations++;
   }
-  if (diagnostics.wcagMinRatio >= 7) {
-    diagnostics.aaaCompliant = true;
-  }
+  if (diagnostics.wcagMinRatio >= 7) diagnostics.aaaCompliant = true;
   diagnostics.perceptualStepCount = perceptualStepCount;
   diagnostics.arcUsage = dynamics.enableColorCircle ? (numColors > 1 ? (numColors - 1) / (numColors - 1) : 0) * ((dynamics.arcLength || 0) / 360) : 0;
+  diagnostics.curveApplied = {
+    style: dynamics.curveStyle || 'linear',
+    dimensions: dynamics.curveDimensions || ['all'],
+    strength: dynamics.curveStrength ?? 1.0,
+  };
   return { palette, config, diagnostics };
 }
 export const ColorJourneyEngine = {

@@ -26,6 +26,9 @@ typedef struct {
     int variation_mode; // 0: off, 1: subtle, 2: noticeable
     bool enable_color_circle;
     double arc_length;
+    char curve_style[16];
+    int curve_dimensions; // bitflags: 1=L, 2=C, 4=H, 8=all
+    double curve_strength;
 } CJ_Config;
 typedef struct {
     oklab ok;
@@ -40,9 +43,13 @@ uint32_t xorshift32() {
     return rng_state = x;
 }
 double random_double() { return (double)xorshift32() / UINT32_MAX; }
-double cubic_bezier(double t, double p1, double p2) {
-    double u = 1.0 - t;
-    return 3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t;
+double get_easing(const char* style, double t, double p1, double p2) {
+    if (strcmp(style, "ease-in") == 0) return cubic_bezier(t, 0.42, 0);
+    if (strcmp(style, "ease-out") == 0) return cubic_bezier(t, 0, 0.58);
+    if (strcmp(style, "sinusoidal") == 0) return 0.5 - 0.5 * cos(t * M_PI);
+    if (strcmp(style, "stepped") == 0) return floor(t * 5) / 4.0;
+    if (strcmp(style, "custom") == 0) return cubic_bezier(t, p1, p2);
+    return t; // linear
 }
 // --- Core API ---
 EXPORT
@@ -55,50 +62,39 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
         double t = (config->loop_mode == 1) ? ((double)i / config->num_colors) : ((config->num_colors > 1) ? (double)i / (config->num_colors - 1) : 0.5);
         if (config->loop_mode == 2) { t *= 2.0; if (t > 1.0) t = 2.0 - t; }
         oklab current_ok;
-        if (config->num_anchors == 1) {
-            oklab anchor = anchors[0];
-            double hue = atan2(anchor.b, anchor.a);
-            double chroma = sqrt(anchor.a * anchor.a + anchor.b * anchor.b);
-            if (!config->enable_color_circle) {
-                int steps = fmin(20, config->num_colors);
-                double step_t = (steps > 1) ? (double)i / (steps - 1) : 0.5;
-                current_ok = anchor;
-                current_ok.l += sin(step_t * M_PI) * 0.1 * config->lightness;
-                double new_chroma = chroma + cos(step_t * M_PI) * 0.05 * (config->chroma - 1.0);
-                current_ok.a = cos(hue) * new_chroma;
-                current_ok.b = sin(hue) * new_chroma;
-            } else {
-                double arc_rad = config->arc_length / 360.0 * 2.0 * M_PI;
-                double new_hue = hue + t * arc_rad + config->warmth * 0.5;
-                current_ok = (oklab){anchor.l, cos(new_hue) * chroma, sin(new_hue) * chroma};
-            }
-        } else {
+        double local_t = t;
+        if (config->num_anchors > 1) {
             int num_segments = (config->loop_mode == 1) ? config->num_anchors : config->num_anchors - 1;
             double segment_t = t * num_segments;
             int segment_idx = fmin(num_segments - 1, floor(segment_t));
-            double local_t = segment_t - segment_idx;
+            local_t = segment_t - segment_idx;
             current_ok = lerp_oklab(anchors[segment_idx], anchors[(segment_idx + 1) % config->num_anchors], local_t);
+        } else {
+            current_ok = anchors[0];
         }
-        // Apply Dynamics
-        double eased_l = cubic_bezier(t, config->bezier_light[0], config->bezier_light[1]);
-        double eased_c = cubic_bezier(t, config->bezier_chroma[0], config->bezier_chroma[1]);
-        current_ok.l = current_ok.l * (1.0 - eased_l) + (current_ok.l + config->lightness * 0.2) * eased_l;
-        double current_chroma = sqrt(current_ok.a * current_ok.a + current_ok.b * current_ok.b);
-        double current_hue = atan2(current_ok.b, current_ok.a);
-        double new_chroma = current_chroma * (1.0 - eased_c) + (current_chroma * config->chroma) * eased_c;
-        if (fabs(t - 0.5) < 0.2) {
-            new_chroma *= (1.0 + config->vibrancy * 0.2 * (1.0 - fabs(t - 0.5) / 0.2));
+        double eased_t = get_easing(config->curve_style, local_t, config->bezier_light[0], config->bezier_light[1]);
+        double strength = config->curve_strength;
+        bool apply_l = (config->curve_dimensions & 1) || (config->curve_dimensions & 8);
+        bool apply_c = (config->curve_dimensions & 2) || (config->curve_dimensions & 8);
+        bool apply_h = (config->curve_dimensions & 4) || (config->curve_dimensions & 8);
+        double base_chroma = sqrt(current_ok.a * current_ok.a + current_ok.b * current_ok.b);
+        double base_hue = atan2(current_ok.b, current_ok.a);
+        current_ok.l += (apply_l ? lerp(0, config->lightness * 0.2, eased_t * strength) : config->lightness * 0.2 * local_t);
+        double new_chroma = (apply_c ? lerp(base_chroma, base_chroma * config->chroma, eased_t * strength) : lerp(base_chroma, base_chroma * config->chroma, local_t));
+        if (config->num_anchors == 1 && config->enable_color_circle) {
+            double arc_rad = config->arc_length / 360.0 * 2.0 * M_PI;
+            double hue_mod = apply_h ? eased_t * strength : t;
+            base_hue += hue_mod * arc_rad + config->warmth * 0.5;
         }
-        if (config->num_anchors > 1 && fabs(t - 0.5) < 0.05 && config->vibrancy < 0.5) {
-            new_chroma *= 1.1;
-        }
-        current_ok.a = cos(current_hue) * new_chroma;
-        current_ok.b = sin(current_hue) * new_chroma;
+        double boost = 1.0 + config->vibrancy * 0.6 * fmax(0.0, 1.0 - fabs(local_t - 0.5) / 0.35);
+        new_chroma *= boost;
+        current_ok.a = cos(base_hue) * new_chroma;
+        current_ok.b = sin(base_hue) * new_chroma;
         if (config->variation_mode > 0) {
-            double strength = config->variation_mode == 1 ? 0.01 : 0.03;
-            current_ok.l += (random_double() - 0.5) * strength * 0.5;
-            current_ok.a += (random_double() - 0.5) * strength;
-            current_ok.b += (random_double() - 0.5) * strength;
+            double var_strength = config->variation_mode == 1 ? 0.01 : 0.03;
+            current_ok.l += (random_double() - 0.5) * var_strength * 0.5;
+            current_ok.a += (random_double() - 0.5) * var_strength;
+            current_ok.b += (random_double() - 0.5) * var_strength;
         }
         palette[i].ok = current_ok;
     }

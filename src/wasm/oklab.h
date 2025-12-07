@@ -25,4 +25,5 @@ srgb_u8 oklab_to_srgb(oklab c);
 double delta_e_ok(oklab c1, oklab c2);
 oklab lerp_oklab(oklab c1, oklab c2, double t);
 double cubic_bezier(double t, double p1, double p2);
+double get_easing(const char* style, double t, double p1, double p2);
 #endif // OKLAB_H

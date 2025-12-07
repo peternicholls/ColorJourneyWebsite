@@ -5,6 +5,8 @@ export type LoopMode = 'open' | 'closed' | 'ping-pong';
 export type GranularityMode = 'continuous' | 'discrete';
 export type VariationMode = 'off' | 'subtle' | 'noticeable';
 export type BiasPreset = 'neutral' | 'lighter' | 'darker' | 'muted' | 'vivid' | 'warm' | 'cool' | 'aaa-safe';
+export type CurveStyle = 'linear' | 'ease-in' | 'ease-out' | 'sinusoidal' | 'stepped' | 'custom';
+export type CurveDimension = 'L' | 'C' | 'H' | 'all';
 export interface DynamicsConfig {
   lightness: number; // -1 to 1 (darker to lighter)
   chroma: number; // 0 to 2 (muted to vivid)
@@ -20,6 +22,12 @@ export interface DynamicsConfig {
   enableColorCircle?: boolean;
   /** Arc degrees for color wheel extension (0-360). Defaults to 0. */
   arcLength?: number;
+  /** The easing curve style for journey traversal. */
+  curveStyle?: CurveStyle;
+  /** The dimensions (Lightness, Chroma, Hue) the curve applies to. */
+  curveDimensions?: CurveDimension[];
+  /** The strength of the easing curve's effect. */
+  curveStrength?: number;
 }
 export interface VariationConfig {
   mode: VariationMode;
@@ -46,5 +54,10 @@ export interface GenerateResult {
     aaaCompliant?: boolean;
     perceptualStepCount?: number;
     arcUsage?: number;
+    curveApplied?: {
+      style: string;
+      dimensions: string[];
+      strength: number;
+    };
   };
 }

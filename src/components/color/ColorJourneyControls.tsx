@@ -10,7 +10,8 @@ import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
-import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig } from '@/types/color-journey';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig, CurveStyle, CurveDimension } from '@/types/color-journey';
 import { Plus, Trash2, Dices } from 'lucide-react';
 interface ColorJourneyControlsProps {
   config: ColorJourneyConfig;
@@ -18,10 +19,10 @@ interface ColorJourneyControlsProps {
   isLoadingWasm: boolean;
 }
 const PRESETS: { [key: string]: Partial<ColorJourneyConfig> } = {
-  "Default": { anchors: ["#F38020", "#667EEA"], numColors: 12 },
-  "Pastel Drift": { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6", "#ffaaa5", "#ff8b94"], numColors: 10, dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0 } },
-  "Vivid Sunset": { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2 } },
-  "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3 } },
+  "Default": { anchors: ["#F38020", "#667EEA"], numColors: 12, dynamics: { lightness: 0, chroma: 1, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'linear', curveDimensions: ['all'], curveStrength: 1 } },
+  "Pastel Drift": { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6", "#ffaaa5", "#ff8b94"], numColors: 10, dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, curveStyle: 'ease-out', curveDimensions: ['all'], curveStrength: 1 } },
+  "Vivid Sunset": { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, curveStyle: 'ease-in', curveDimensions: ['all'], curveStrength: 1 } },
+  "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, curveStyle: 'sinusoidal', curveDimensions: ['all'], curveStrength: 1 } },
 };
 const BIAS_MAP: { [key in BiasPreset]: Partial<DynamicsConfig> } = {
   neutral: { lightness: 0, chroma: 1.0, warmth: 0 },
@@ -32,6 +33,14 @@ const BIAS_MAP: { [key in BiasPreset]: Partial<DynamicsConfig> } = {
   warm: { lightness: 0, chroma: 1.1, warmth: 0.3 },
   cool: { lightness: 0, chroma: 1.1, warmth: -0.3 },
   'aaa-safe': { lightness: 0.1, chroma: 1.0, contrast: 0.1, vibrancy: 0.4, warmth: 0 },
+};
+const CURVE_STYLE_MAP: { [key in CurveStyle]: { name: string, description: string, bezier: [number, number] } } = {
+  'linear': { name: 'Linear', description: 'Uniform pacing for a consistent transition.', bezier: [0.5, 0.5] },
+  'ease-in': { name: 'Ease-In', description: 'Starts slow and accelerates. Good for build-ups.', bezier: [0.42, 0] },
+  'ease-out': { name: 'Ease-Out', description: 'Starts fast and decelerates. Creates a soft landing.', bezier: [0, 0.58] },
+  'sinusoidal': { name: 'Sinusoidal', description: 'A smooth, wave-like ease-in and ease-out.', bezier: [0.37, 0] },
+  'stepped': { name: 'Stepped', description: 'Creates discrete jumps for segmented palettes.', bezier: [0, 0] },
+  'custom': { name: 'Custom', description: 'Manually define the Bezier curve points.', bezier: [0.5, 0.5] },
 };
 export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: ColorJourneyControlsProps) {
   const [selectedPreset, setSelectedPreset] = useState('');
@@ -67,6 +76,14 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
   const applyBias = (biasName: BiasPreset) => {
     const bias = BIAS_MAP[biasName];
     handleMultipleDynamicsChange({ ...bias, biasPreset: biasName });
+  };
+  const handleCurveStyleChange = (style: CurveStyle) => {
+    const mapping = CURVE_STYLE_MAP[style];
+    handleMultipleDynamicsChange({
+      bezierLight: mapping.bezier,
+      bezierChroma: mapping.bezier,
+      curveStyle: style,
+    });
   };
   const handleBezierChange = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string) => {
     const val = Math.max(0, Math.min(1, parseFloat(value)));
@@ -127,7 +144,7 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                   <Label>Bias Preset</Label>
                   <Select value={config.dynamics.biasPreset || 'neutral'} onValueChange={(v: BiasPreset) => applyBias(v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{Object.keys(BIAS_MAP).map(b => <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1).replace('-',' ')}</SelectItem>)}</SelectContent>
+                    <SelectContent>{Object.keys(BIAS_MAP).map(b => <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1).replace('-', ' ')}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
@@ -179,31 +196,47 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
           </AccordionItem>
           <AccordionItem value="curves">
             <AccordionTrigger className="text-sm font-medium">Advanced Curves</AccordionTrigger>
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3, delay: 0.3 }}>
               <AccordionContent className="space-y-4 pt-2">
                 <div className="space-y-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild><Label>Lightness Curve (Bezier P1, P2)</Label></TooltipTrigger>
-                      <TooltipContent><p>Cubic Bezier control points for lightness easing (0-1 range).</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 0, e.target.value)} className="min-h-10" />
-                    <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 1, e.target.value)} className="min-h-10" />
+                  <Label>Traversal Style</Label>
+                  <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CURVE_STYLE_MAP).map(([key, { name, description }]) => (
+                        <SelectItem key={key} value={key}>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild><span>{name}</span></TooltipTrigger>
+                              <TooltipContent><p>{description}</p></TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {config.dynamics.curveStyle === 'custom' && (
+                  <div className="space-y-2">
+                    <Label>Custom Bezier (P1, P2)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 0, e.target.value)} className="min-h-10" />
+                      <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 1, e.target.value)} className="min-h-10" />
+                    </div>
                   </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Apply To</Label>
+                  <ToggleGroup type="multiple" value={config.dynamics.curveDimensions || ['all']} onValueChange={(v: CurveDimension[]) => handleDynamicsChange('curveDimensions', v.length > 0 ? v : ['all'])}>
+                    <ToggleGroupItem value="L">Lightness</ToggleGroupItem>
+                    <ToggleGroupItem value="C">Chroma</ToggleGroupItem>
+                    <ToggleGroupItem value="H">Hue</ToggleGroupItem>
+                    <ToggleGroupItem value="all">All</ToggleGroupItem>
+                  </ToggleGroup>
                 </div>
                 <div className="space-y-2">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild><Label>Chroma Curve (Bezier P1, P2)</Label></TooltipTrigger>
-                      <TooltipContent><p>Cubic Bezier control points for chroma easing (0-1 range).</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierChroma?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierChroma', 0, e.target.value)} className="min-h-10" />
-                    <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierChroma?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierChroma', 1, e.target.value)} className="min-h-10" />
-                  </div>
+                  <Label>Strength ({(config.dynamics.curveStrength || 1).toFixed(2)})</Label>
+                  <Slider value={[config.dynamics.curveStrength || 1]} onValueChange={([v]) => handleDynamicsChange('curveStrength', v)} min={0} max={1} step={0.05} />
                 </div>
               </AccordionContent>
             </motion.div>

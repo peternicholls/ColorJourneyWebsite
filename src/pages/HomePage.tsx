@@ -25,6 +25,9 @@ const initialConfig: ColorJourneyConfig = {
     bezierChroma: [0.5, 0.5],
     enableColorCircle: false,
     arcLength: 0,
+    curveStyle: 'linear',
+    curveDimensions: ['all'],
+    curveStrength: 1.0,
   },
   variation: {
     mode: 'off',
