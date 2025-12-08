@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { GenerateResult, ColorPoint } from "@/types/color-journey";
-const ColorJourneyConfigSchema = z.object({
+export const ColorJourneyConfigSchema = z.object({
   anchors: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)),
   numColors: z.number().int().min(1),
   loop: z.enum(['open', 'closed', 'ping-pong']),
@@ -28,7 +28,7 @@ const ColorJourneyConfigSchema = z.object({
     show3D: z.boolean().optional(),
   }).optional(),
 });
-const GenerateResultSchema = z.object({
+export const GenerateResultSchema = z.object({
   config: ColorJourneyConfigSchema,
   palette: z.array(z.object({
     hex: z.string(),
