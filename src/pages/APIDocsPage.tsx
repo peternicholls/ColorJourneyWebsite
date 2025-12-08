@@ -67,7 +67,7 @@ export function APIDocsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-8 md:py-10 lg:py-12">
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #F38020 0%, #667EEA 50%, #14B8A6 100%)' }}>API Documentation</h2>
+              <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-balance leading-tight bg-clip-text text-transparent bg-gradient-hero bg-[length:200%_100%] animate-gradient-shift">API Documentation</h2>
               <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-pretty">
                 Access <code className="font-mono text-sm bg-muted p-1 rounded-md">/api/color-journey</code> for dynamic, deterministic server-side palettes. Generate designer-intent color journeys programmatically.
               </p>
@@ -144,7 +144,7 @@ export function APIDocsPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
+          <p>Copyright © 2025 Peter Nicholls. Based on the OKLab color space matrix conversion by Björn Ottosson (<a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>), with custom optimizations including a fast cube root implementation. Core C engine by Peter Nicholls. This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

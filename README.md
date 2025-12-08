@@ -18,7 +18,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 ## Tech Stack
 - **Frontend**: React 18, React Router 6, TypeScript, Vite
 - **UI & Styling**: shadcn/ui, Tailwind CSS v3, Framer Motion, Lucide React
-- **Core Engine**: Portable C compiled to WebAssembly via **Emscripten**, with a TypeScript fallback.
+- **Core Engine**: Portable C compiled to WebAssembly via **Emscripten**, with a TypeScript fallback. Based on the OKLab color space matrix conversion by Björn Ottosson (MIT License), with custom optimizations including a fast cube root implementation. Core C engine by Peter Nicholls.
 - **Backend/Edge**: Cloudflare Workers, Hono (routing), with WASM integration.
 - **Build & Deployment**: Bun, Wrangler (Cloudflare CLI), Emscripten (C to WASM)
 ## Quick Start
@@ -124,4 +124,5 @@ To verify:
 ```
 [cloudflarebutton]
 ---
+**Based on the OKLab color space matrix conversion by Björn Ottosson ([MIT License](LICENSE)), with custom optimizations including a fast cube root implementation. Core C engine by Peter Nicholls.**
 **Copyright © 2025 Peter Nicholls.** This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.

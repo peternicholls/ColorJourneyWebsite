@@ -85,55 +85,18 @@ export function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-8 md:py-12 lg:py-16">
             <div className="text-center mb-12">
-              <motion.h2
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, ease: 'easeOut' }}
-                className="text-4xl md:text-5xl font-display font-bold text-balance leading-tight"
-              >
-                <motion.span
-                  className="bg-clip-text text-transparent bg-gradient-primary bg-[length:200%_100%]"
-                  animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
-                  transition={{ duration: 4, ease: "easeInOut", repeat: Infinity }}
-                >
-                  Color Journey Palette Engine
-                </motion.span>
-              </motion.h2>
-              <motion.p
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.1, ease: 'easeOut' }}
-                className="mt-4 text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-pretty"
-              >
+              <h2 className="text-4xl md:text-5xl lg:text-6xl font-display font-bold text-balance leading-tight bg-clip-text text-transparent bg-gradient-hero bg-[length:200%_100%] animate-gradient-shift">
+                Color Journey Palette Engine
+              </h2>
+              <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-pretty">
                 Generate designer-grade, perceptually-aware color sequences with fine-tuned controls, guaranteed contrast, and optional organic variation.
-              </motion.p>
+              </p>
             </div>
-            <motion.div
-              className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12"
-              variants={{
-                hidden: { opacity: 0 },
-                show: {
-                  opacity: 1,
-                  transition: {
-                    staggerChildren: 0.1,
-                  },
-                },
-              }}
-              initial="hidden"
-              animate="show"
-            >
-              <motion.div
-                variants={{ hidden: { opacity: 0, x: -20 }, show: { opacity: 1, x: 0 } }}
-                transition={{ duration: 0.5 }}
-                className="md:col-span-1"
-              >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+              <div className="md:col-span-1">
                 <ColorJourneyControls config={config} onConfigChange={setConfig} isLoadingWasm={isLoadingWasm} />
-              </motion.div>
-              <motion.div
-                className="md:col-span-2"
-                variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }}
-                transition={{ duration: 0.5 }}
-              >
+              </div>
+              <div className="md:col-span-2">
                 {isLoadingWasm ? (
                   <div className="space-y-4">
                     <Card>
@@ -153,14 +116,14 @@ export function HomePage() {
                     isLoadingWasm={isLoadingWasm}
                   />
                 )}
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           </div>
         </div>
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Built with ❤️ at Cloudflare. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). Copyright © 2025 Peter Nicholls.</p>
+          <p>Built with ❤️ at Cloudflare. Based on the OKLab color space matrix conversion by Björn Ottosson (<a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>), with custom optimizations including a fast cube root implementation. Core C engine by Peter Nicholls. Copyright © 2025 Peter Nicholls.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />
