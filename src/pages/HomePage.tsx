@@ -26,7 +26,7 @@ const initialConfig: ColorJourneyConfig = {
     enableColorCircle: false,
     arcLength: 0,
     curveStyle: 'linear',
-    curveDimensions: ['all'],
+    curveDimensions: ['L','C','H'],
     curveStrength: 1.0,
   },
   variation: {

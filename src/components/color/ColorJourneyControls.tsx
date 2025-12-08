@@ -20,10 +20,10 @@ interface ColorJourneyControlsProps {
   isLoadingWasm: boolean;
 }
 const PRESETS: { [key: string]: Partial<ColorJourneyConfig> } = {
-  "Default": { anchors: ["#F38020", "#667EEA"], numColors: 12, dynamics: { lightness: 0, chroma: 1, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'linear', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
-  "Pastel Drift": { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6", "#ffaaa5", "#ff8b94"], numColors: 10, dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, curveStyle: 'ease-out', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
-  "Vivid Sunset": { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, curveStyle: 'ease-in', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
-  "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, curveStyle: 'sinusoidal', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
+  "Default": { anchors: ["#F38020", "#667EEA"], numColors: 12, dynamics: { lightness: 0, chroma: 1, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'linear', curveDimensions: ['L','C','H'] as CurveDimension[], curveStrength: 1 } },
+  "Pastel Drift": { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6", "#ffaaa5", "#ff8b94"], numColors: 10, dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, curveStyle: 'ease-out', curveDimensions: ['L','C','H'] as CurveDimension[], curveStrength: 1 } },
+  "Vivid Sunset": { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, curveStyle: 'ease-in', curveDimensions: ['L','C','H'] as CurveDimension[], curveStrength: 1 } },
+  "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, curveStyle: 'sinusoidal', curveDimensions: ['L','C','H'] as CurveDimension[], curveStrength: 1 } },
 };
 const BIAS_MAP: { [key in BiasPreset]: Partial<DynamicsConfig> } = {
   neutral: { lightness: 0, chroma: 1.0, warmth: 0 },
@@ -109,10 +109,19 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
     setBezierErrors(newErrors);
   };
   const handleCurveDimensionChange = (dim: CurveDimension, checked: boolean) => {
-    const currentDims = config.dynamics.curveDimensions?.filter(d => d !== 'all') || [];
-    const newDims = checked
-      ? [...currentDims, dim]
-      : currentDims.filter(d => d !== dim);
+    // Normalize incoming dimensions: expand 'all' to explicit axes and dedupe
+    const normalize = (dims?: CurveDimension[]) => {
+      if (!dims) return [] as CurveDimension[];
+      if (dims.includes('all')) return ['L', 'C', 'H'] as CurveDimension[];
+      return Array.from(new Set(dims));
+    };
+    const currentDims = normalize(config.dynamics.curveDimensions);
+    let newDims: CurveDimension[];
+    if (checked) {
+      newDims = currentDims.includes(dim) ? currentDims : [...currentDims, dim];
+    } else {
+      newDims = currentDims.filter(d => d !== dim);
+    }
     const updates: Partial<DynamicsConfig> = { curveDimensions: newDims };
     if (newDims.length === 0) {
       updates.curveStyle = 'linear';
@@ -127,7 +136,11 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
       curveStrength: 1,
     });
   };
-  const curveDimensions = config.dynamics.curveDimensions || [];
+  const curveDimensions = ((): CurveDimension[] => {
+    const dims = config.dynamics.curveDimensions || [];
+    if (dims.includes('all')) return ['L', 'C', 'H'];
+    return Array.from(new Set(dims));
+  })();
   return (
     <Card className="sticky top-8">
       <CardHeader>
@@ -135,6 +148,7 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
         <CardDescription>Craft your perfect color palette.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <TooltipProvider>
         <div className="space-y-2">
           <Label>Presets</Label>
           <Select value={selectedPreset} onValueChange={(val) => { applyPreset(val); setSelectedPreset(val); }}>
@@ -208,12 +222,10 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
               <AccordionContent className="space-y-4 pt-2">
                 <motion.div variants={motionVariants} className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                   <div className="space-y-0.5">
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild><Label>Enable Color Circle</Label></TooltipTrigger>
                         <TooltipContent><p>Enable hue traversal after perceptual variations.</p></TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
                     <p className="text-xs text-muted-foreground">Extend journey via color wheel arc.</p>
                   </div>
                   <Switch checked={config.dynamics.enableColorCircle || false} onCheckedChange={checked => handleDynamicsChange('enableColorCircle', checked)} disabled={isLoadingWasm || config.anchors.length > 1} />
@@ -232,7 +244,6 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
               <AccordionContent className="space-y-4 pt-2">
                 <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Traversal Style</Label>
-                  <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
@@ -246,12 +257,10 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                       </TooltipTrigger>
                       <TooltipContent><p>Controls non-linear pacing along the journey path.</p></TooltipContent>
                     </Tooltip>
-                  </TooltipProvider>
                 </motion.div>
                 {config.dynamics.curveStyle === 'custom' && (
                   <motion.div variants={motionVariants} className="space-y-2">
                     <Label>Custom Bezier (P1, P2)</Label>
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <div className="grid grid-cols-2 gap-2">
@@ -261,49 +270,40 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                         </TooltipTrigger>
                         <TooltipContent><p>Bezier control points (0.0-1.0) for custom easing curve.</p></TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
                   </motion.div>
                 )}
                 <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Apply To</Label>
                   <div className="flex flex-row flex-wrap gap-x-4 gap-y-2 sm:gap-2 justify-start items-center">
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <label className="flex items-center gap-2 min-w-[80px]"><input type="checkbox" aria-label="Apply curve to Lightness" checked={curveDimensions.includes('L')} onChange={(e) => handleCurveDimensionChange('L', e.target.checked)} className="h-4 w-4" /><span className="ml-2">Lightness</span></label>
                         </TooltipTrigger>
                         <TooltipContent><p>Non-linear pacing of perceived brightness (OKLab L) for tonal curves.</p></TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <label className="flex items-center gap-2 min-w-[80px]"><input type="checkbox" aria-label="Apply curve to Chroma" checked={curveDimensions.includes('C')} onChange={(e) => handleCurveDimensionChange('C', e.target.checked)} className="h-4 w-4" /><span className="ml-2">Chroma</span></label>
                         </TooltipTrigger>
                         <TooltipContent><p>Shapes saturation (OKLab chroma) for richer/muted transitions.</p></TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
-                    <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <label className="flex items-center gap-2 min-w-[80px]"><input type="checkbox" aria-label="Apply curve to Hue" checked={curveDimensions.includes('H')} onChange={(e) => handleCurveDimensionChange('H', e.target.checked)} className="h-4 w-4" /><span className="ml-2">Hue</span></label>
                         </TooltipTrigger>
                         <TooltipContent><p>Modulates color angle (OKLab a/b) for warm/cool emphasis.</p></TooltipContent>
                       </Tooltip>
-                    </TooltipProvider>
                     <Button variant="ghost" size="sm" onClick={handleSelectAllCurve}>Select All</Button>
                   </div>
                 </motion.div>
                 <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Strength ({(config.dynamics.curveStrength || 1).toFixed(2)})</Label>
-                  <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Slider value={[config.dynamics.curveStrength || 1]} onValueChange={([v]) => handleDynamicsChange('curveStrength', v)} min={0} max={1} step={0.05} />
                       </TooltipTrigger>
                       <TooltipContent><p>Intensity of curve effect (0=linear, 1=full).</p></TooltipContent>
                     </Tooltip>
-                  </TooltipProvider>
                 </motion.div>
               </AccordionContent>
             </motion.div>
@@ -330,6 +330,7 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
             </motion.div>
           </AccordionItem>
         </Accordion>
+      </TooltipProvider>
       </CardContent>
     </Card>
   );
