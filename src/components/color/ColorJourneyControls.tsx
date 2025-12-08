@@ -91,20 +91,34 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
       curveStyle: style,
     });
   };
-  const handleBezierChange = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string) => {
-    const val = parseFloat(value);
+  const handleBezierChange = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string | number) => {
+    const parsed = typeof value === 'number' ? value : parseFloat(value);
+    const clamped = isNaN(parsed) ? 0.5 : Math.min(1, Math.max(0, parsed));
     const newCurve = [...(config.dynamics[curve] || [0.5, 0.5])] as [number, number];
-    newCurve[index] = val;
+    newCurve[index] = clamped;
+    // update error state for this control
+    const newErrors = { ...bezierErrors };
+    newErrors[curve][index] = isNaN(parsed) || parsed < 0 || parsed > 1;
+    setBezierErrors(newErrors);
     handleDynamicsChange(curve, newCurve);
   };
-  const validateBezier = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string) => {
-    const val = parseFloat(value);
+  const validateBezier = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string | number) => {
+    const parsed = typeof value === 'number' ? value : parseFloat(value);
     const newErrors = { ...bezierErrors };
-    if (isNaN(val) || val < 0 || val > 1) {
+    if (isNaN(parsed) || parsed < 0 || parsed > 1) {
       newErrors[curve][index] = true;
       toast.error('Bezier value must be between 0.0 and 1.0.');
+      // persist a clamped safe value
+      const safe = isNaN(parsed) ? 0.5 : Math.min(1, Math.max(0, parsed));
+      const newCurve = [...(config.dynamics[curve] || [0.5, 0.5])] as [number, number];
+      newCurve[index] = safe;
+      handleDynamicsChange(curve, newCurve);
     } else {
       newErrors[curve][index] = false;
+      // persist exact valid value
+      const newCurve = [...(config.dynamics[curve] || [0.5, 0.5])] as [number, number];
+      newCurve[index] = parsed;
+      handleDynamicsChange(curve, newCurve);
     }
     setBezierErrors(newErrors);
   };
@@ -141,6 +155,17 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
     if (dims.includes('all')) return ['L', 'C', 'H'];
     return Array.from(new Set(dims));
   })();
+
+  // Bezier preview helper values (used by the inline SVG preview)
+  const bezierLight = config.dynamics.bezierLight ?? [0.5, 0.5];
+  const bezierChroma = config.dynamics.bezierChroma ?? [0.5, 0.5];
+  const svgWidth = 200;
+  const svgHeight = 50;
+  const cp1x = svgWidth * 0.25;
+  const cp2x = svgWidth * 0.75;
+  const blPath = `M0,${svgHeight} C ${cp1x},${svgHeight - bezierLight[0] * svgHeight} ${cp2x},${svgHeight - bezierLight[1] * svgHeight} ${svgWidth},${svgHeight}`;
+  const bcPath = `M0,${svgHeight} C ${cp1x},${svgHeight - bezierChroma[0] * svgHeight} ${cp2x},${svgHeight - bezierChroma[1] * svgHeight} ${svgWidth},${svgHeight}`;
+
   return (
     <Card className="sticky top-8">
       <CardHeader>
@@ -245,7 +270,7 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                 <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Traversal Style</Label>
                     <Tooltip>
-                      <TooltipTrigger>
+                      <TooltipTrigger asChild>
                         <div>
                           <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -259,19 +284,88 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                       </TooltipTrigger>
                       <TooltipContent><p>Controls non-linear pacing along the journey path.</p></TooltipContent>
                     </Tooltip>
+
+                    <div className="mt-4 mb-4">
+                      <svg width="200" height="50" viewBox="0 0 200 50" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Bezier preview">
+                        {/* Paths: M0,H C cp1x,cp1y cp2x,cp2y W,H */}
+                        <path d={blPath} fill="none" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" />
+                        <path d={bcPath} fill="none" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" />
+                        {/* Control point handles for bezierLight (purple) */}
+                        <circle cx={cp1x} cy={svgHeight - (bezierLight[0] * svgHeight)} r="3" fill="#4f46e5" />
+                        <circle cx={cp2x} cy={svgHeight - (bezierLight[1] * svgHeight)} r="3" fill="#4f46e5" />
+                        {/* Control point handles for bezierChroma (teal) */}
+                        <circle cx={cp1x} cy={svgHeight - (bezierChroma[0] * svgHeight)} r="3" fill="#06b6d4" />
+                        <circle cx={cp2x} cy={svgHeight - (bezierChroma[1] * svgHeight)} r="3" fill="#06b6d4" />
+                      </svg>
+                    </div>
                 </motion.div>
                 {config.dynamics.curveStyle === 'custom' && (
-                  <motion.div variants={motionVariants} className="space-y-2">
+                  <motion.div variants={motionVariants} className="space-y-4">
                     <Label>Custom Bezier (P1, P2)</Label>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="grid grid-cols-2 gap-2">
-                            <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 0, e.target.value)} onBlur={e => validateBezier('bezierLight', 0, e.target.value)} className={cn("min-h-10", bezierErrors.bezierLight[0] && "border-destructive")} />
-                            <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 1, e.target.value)} onBlur={e => validateBezier('bezierLight', 1, e.target.value)} className={cn("min-h-10", bezierErrors.bezierLight[1] && "border-destructive")} />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Bezier control points (0.0-1.0) for custom easing curve.</p></TooltipContent>
-                      </Tooltip>
+
+                    {/* Bezier Light controls */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Light Curve (bezierLight)</p>
+                        <div className="text-xs text-muted-foreground">P1 / P2</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Input type="number" step="0.01" min="0" max="1" value={config.dynamics.bezierLight?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 0, e.target.value)} onBlur={e => validateBezier('bezierLight', 0, e.target.value)} className={cn("min-h-10", bezierErrors.bezierLight[0] && "border-destructive")} />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Slider value={[config.dynamics.bezierLight?.[0] ?? 0.5]} onValueChange={([v]) => handleBezierChange('bezierLight', 0, v)} min={0} max={1} step={0.01} />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Drag to adjust curve handle</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="space-y-1">
+                          <Input type="number" step="0.01" min="0" max="1" value={config.dynamics.bezierLight?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 1, e.target.value)} onBlur={e => validateBezier('bezierLight', 1, e.target.value)} className={cn("min-h-10", bezierErrors.bezierLight[1] && "border-destructive")} />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Slider value={[config.dynamics.bezierLight?.[1] ?? 0.5]} onValueChange={([v]) => handleBezierChange('bezierLight', 1, v)} min={0} max={1} step={0.01} />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Drag to adjust curve handle</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bezier Chroma controls */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">Chroma Curve (bezierChroma)</p>
+                        <div className="text-xs text-muted-foreground">P1 / P2</div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <Input type="number" step="0.01" min="0" max="1" value={config.dynamics.bezierChroma?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierChroma', 0, e.target.value)} onBlur={e => validateBezier('bezierChroma', 0, e.target.value)} className={cn("min-h-10", bezierErrors.bezierChroma[0] && "border-destructive")} />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Slider value={[config.dynamics.bezierChroma?.[0] ?? 0.5]} onValueChange={([v]) => handleBezierChange('bezierChroma', 0, v)} min={0} max={1} step={0.01} />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Drag to adjust curve handle</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <div className="space-y-1">
+                          <Input type="number" step="0.01" min="0" max="1" value={config.dynamics.bezierChroma?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierChroma', 1, e.target.value)} onBlur={e => validateBezier('bezierChroma', 1, e.target.value)} className={cn("min-h-10", bezierErrors.bezierChroma[1] && "border-destructive")} />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div>
+                                <Slider value={[config.dynamics.bezierChroma?.[1] ?? 0.5]} onValueChange={([v]) => handleBezierChange('bezierChroma', 1, v)} min={0} max={1} step={0.01} />
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent><p>Drag to adjust curve handle</p></TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
                 <motion.div variants={motionVariants} className="space-y-2">
