@@ -54,7 +54,7 @@ export function PresetsExportPage() {
   }, []);
   const savePreset = () => {
     if (isLoadingWasm) {
-      toast.info('Color engine is still loading, please wait a moment.');
+      toast.info('WASM engine loading...');
       return;
     }
     if (!presetName || !editingPreset) {
@@ -178,7 +178,7 @@ export function PresetsExportPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright © 2025 Peter Nicholls. This project is licensed under the MIT License - see <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">LICENSE</a> file for details.</p>
+          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

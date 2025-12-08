@@ -12,8 +12,8 @@ function initWasm() {
     if (wasmLoadPromise) return wasmLoadPromise;
     wasmLoadPromise = (async () => {
         try {
-            // Use dynamic import to load the Emscripten-generated JS module
-            const { default: Module } = await import('/assets/color_journey.js');
+            // Use dynamic import to load the Emscripten-generated JS module from the public root
+            const { default: Module } = await import('/color_journey.js');
             const moduleInstance = await Module();
             wasmApi = {
                 generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
@@ -23,7 +23,7 @@ function initWasm() {
             };
             console.log("🎨 Color Journey WASM module loaded successfully.");
         } catch (e) {
-            console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
+            console.error("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", "Path checked: /color_journey.js from public/", e);
             wasmApi = null;
         } finally {
             isLoadingWasm = false;

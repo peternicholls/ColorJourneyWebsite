@@ -25,11 +25,8 @@ export function Header() {
               </div>
               <div>
                 <h1 className="text-lg font-display font-bold leading-tight">
-                  Color Journey Palette Engine
+                  Color Journey
                 </h1>
-                <p className="text-xs text-muted-foreground hidden sm:block">
-                  using the OKLab color space, based on Björn Ottosson's work (MIT License)
-                </p>
               </div>
             </Link>
           </div>

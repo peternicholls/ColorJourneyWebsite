@@ -61,8 +61,16 @@ export function HomePage() {
       }
     };
     const wasmCheckInterval = setInterval(checkWasmLoading, 100);
+    const wasmLoadTimeout = setTimeout(() => {
+        if (ColorJourneyEngine.isLoadingWasm()) {
+            console.warn("WASM module is taking a long time to load. Check network or build script.");
+        }
+    }, 10000);
     checkWasmLoading();
-    return () => clearInterval(wasmCheckInterval);
+    return () => {
+        clearInterval(wasmCheckInterval);
+        clearTimeout(wasmLoadTimeout);
+    };
   }, []);
   useEffect(() => {
     if (isLoadingWasm) return;
@@ -98,7 +106,7 @@ export function HomePage() {
                 Generate designer-grade, perceptually-aware color sequences with fine-tuned controls, guaranteed contrast, and optional organic variation.
               </motion.p>
             </div>
-            <motion.div 
+            <motion.div
               className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12"
               variants={{
                 hidden: { opacity: 0 },
@@ -136,7 +144,7 @@ export function HomePage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Built with ❤️ at Cloudflare. Copyright © 2025 Peter Nicholls. This project is licensed under the MIT License.</p>
+          <p>Built with ❤️ at Cloudflare. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). Copyright © 2025 Peter Nicholls.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />
