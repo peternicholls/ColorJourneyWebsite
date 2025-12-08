@@ -21,11 +21,18 @@ emcc src/wasm/oklab.c src/wasm/color_journey.c \
   -s USE_ES6_IMPORT_META=0 \
   -s EXPORTED_FUNCTIONS='["_generate_discrete_palette", "_wasm_malloc", "_wasm_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["cwrap"]' \
+  -s ALLOW_MEMORY_GROWTH=1 \
   -O3
-# Check if the build was successful
-if [[ -f "public/color_journey.js" && -f "public/color_journey.wasm" ]]; then
-  echo "✅ Build complete. Output files are in public/"
-else
-  echo "❌ Build failed. Please check the emcc output for errors. Required files not found."
+# Check if the build was successful and files have a reasonable size
+JS_SIZE=$(stat -c%s public/color_journey.js 2>/dev/null || echo 0)
+WASM_SIZE=$(stat -c%s public/color_journey.wasm 2>/dev/null || echo 0)
+if [[ $JS_SIZE -lt 10240 || $WASM_SIZE -lt 51200 ]]; then
+  echo "❌ Build incomplete: Files are too small or missing."
+  echo "   - JS size: $JS_SIZE bytes (expected >10KB)"
+  echo "   - WASM size: $WASM_SIZE bytes (expected >50KB)"
+  echo "   Ensure Emscripten SDK is active: run 'source ./emsdk_env.sh' in your emsdk directory."
   exit 1
 fi
+echo "✅ WASM built successfully:"
+echo "   - public/color_journey.js ($(du -h public/color_journey.js | cut -f1))"
+echo "   - public/color_journey.wasm ($(du -h public/color_journey.wasm | cut -f1))"

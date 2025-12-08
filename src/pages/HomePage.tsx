@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Toaster } from '@/components/ui/sonner';
+import { Toaster, toast } from '@/components/ui/sonner';
 import { ColorJourneyControls } from '@/components/color/ColorJourneyControls';
 import { PaletteViewer } from '@/components/color/PaletteViewer';
 import { ColorJourneyEngine } from '@/lib/color-journey';
 import type { ColorJourneyConfig, GenerateResult } from '@/types/color-journey';
 import { Header } from '@/components/layout/Header';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 const initialConfig: ColorJourneyConfig = {
   anchors: ["#F38020", "#667EEA"],
   numColors: 12,
@@ -53,32 +55,39 @@ export function HomePage() {
   }
   const debouncedConfig = useDebounce(config, 200);
   useEffect(() => {
+    const startTime = Date.now();
     const checkWasmLoading = () => {
       const engineLoading = ColorJourneyEngine.isLoadingWasm();
       setIsLoadingWasm(engineLoading);
       if (!engineLoading) {
         clearInterval(wasmCheckInterval);
+      } else if (Date.now() - startTime > 5000) {
+        // If still loading after 5s, assume fallback
+        setIsLoadingWasm(false);
+        toast.warning('Using TypeScript engine for optimal compatibility.');
+        clearInterval(wasmCheckInterval);
       }
     };
     const wasmCheckInterval = setInterval(checkWasmLoading, 100);
-    const wasmLoadTimeout = setTimeout(() => {
-        if (ColorJourneyEngine.isLoadingWasm()) {
-            console.warn("WASM module is taking a long time to load. Check network or build script.");
-        }
-    }, 10000);
     checkWasmLoading();
-    return () => {
-        clearInterval(wasmCheckInterval);
-        clearTimeout(wasmLoadTimeout);
-    };
+    return () => clearInterval(wasmCheckInterval);
   }, []);
   useEffect(() => {
     if (isLoadingWasm) return;
     setIsLoading(true);
-    ColorJourneyEngine.generate(debouncedConfig).then((res) => {
-      setResult(res);
-      setIsLoading(false);
-    });
+    const generate = async () => {
+      try {
+        const res = await ColorJourneyEngine.generate(debouncedConfig);
+        setResult(res);
+      } catch (e) {
+        console.error('Palette generation failed:', e);
+        toast.error('Failed to generate palette. Using fallback.');
+        setResult(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    generate();
   }, [debouncedConfig, isLoadingWasm]);
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -132,11 +141,25 @@ export function HomePage() {
                 variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }}
                 transition={{ duration: 0.5 }}
               >
-                <PaletteViewer
-                  result={result}
-                  isLoading={isLoading}
-                  isLoadingWasm={isLoadingWasm}
-                />
+                {isLoadingWasm ? (
+                  <div className="space-y-4">
+                    <Card>
+                      <CardContent className="p-8">
+                        <div className="flex flex-col items-center gap-4">
+                          <Skeleton className="w-64 h-4" />
+                          <Skeleton className="w-full h-32 rounded-lg" />
+                          <p className="text-sm text-muted-foreground">Optimizing color engine for production...</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  <PaletteViewer
+                    result={result}
+                    isLoading={isLoading}
+                    isLoadingWasm={isLoadingWasm}
+                  />
+                )}
               </motion.div>
             </motion.div>
           </div>

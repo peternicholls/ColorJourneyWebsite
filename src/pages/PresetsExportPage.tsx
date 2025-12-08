@@ -14,15 +14,15 @@ import { Header } from '@/components/layout/Header';
 const BUILT_IN_PRESETS: { name: string; config: ColorJourneyConfig }[] = [
   {
     name: "Vivid Sunset",
-    config: { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, loop: 'open', granularity: 'discrete', dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, biasPreset: 'vivid' }, variation: { mode: 'subtle', seed: 42 } }
+    config: { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, loop: 'open', granularity: 'discrete', dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, biasPreset: 'vivid', enableColorCircle: false, arcLength: 0, curveStyle: 'ease-in', curveDimensions: ['all'], curveStrength: 1 }, variation: { mode: 'subtle', seed: 42 } }
   },
   {
     name: "Ocean Deep",
-    config: { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, loop: 'open', granularity: 'discrete', dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, biasPreset: 'cool' }, variation: { mode: 'off', seed: 123 } }
+    config: { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, loop: 'open', granularity: 'discrete', dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, biasPreset: 'cool', enableColorCircle: false, arcLength: 0, curveStyle: 'sinusoidal', curveDimensions: ['all'], curveStrength: 1 }, variation: { mode: 'off', seed: 123 } }
   },
   {
     name: "Pastel Drift",
-    config: { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6"], numColors: 10, loop: 'closed', granularity: 'discrete', dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, biasPreset: 'lighter' }, variation: { mode: 'subtle', seed: 2024 } }
+    config: { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6"], numColors: 10, loop: 'closed', granularity: 'discrete', dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, biasPreset: 'lighter', enableColorCircle: false, arcLength: 0, curveStyle: 'ease-out', curveDimensions: ['all'], curveStrength: 0.8 }, variation: { mode: 'subtle', seed: 2024 } }
   },
 ];
 const PRESETS_STORAGE_KEY = 'cj-presets';
@@ -54,7 +54,7 @@ export function PresetsExportPage() {
   }, []);
   const savePreset = () => {
     if (isLoadingWasm) {
-      toast.info('WASM engine loading...');
+      toast.info('Engine is still loading, please wait a moment.');
       return;
     }
     if (!presetName || !editingPreset) {
@@ -178,7 +178,7 @@ export function PresetsExportPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). This project is licensed under the MIT License.</p>
+          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

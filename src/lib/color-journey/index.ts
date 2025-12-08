@@ -12,9 +12,17 @@ function initWasm() {
     if (wasmLoadPromise) return wasmLoadPromise;
     wasmLoadPromise = (async () => {
         try {
-            // Use dynamic import to load the Emscripten-generated JS module from the public root
-            const { default: Module } = await import('/color_journey.js');
-            const moduleInstance = await Module();
+            // 1. Pre-flight check to see if the WASM loader script exists
+            const response = await fetch('/color_journey.js', { method: 'HEAD' });
+            if (!response.ok) {
+                throw new Error(`WASM loader not found at /color_journey.js: ${response.status}`);
+            }
+            // 2. Attempt to dynamically import with a timeout
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const { default: Module } = await import(/* @vite-ignore */ '/color_journey.js');
+            clearTimeout(timeoutId);
+            const moduleInstance = await Module({ noInitialRun: true });
             wasmApi = {
                 generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
                 malloc: moduleInstance._wasm_malloc,
@@ -23,7 +31,7 @@ function initWasm() {
             };
             console.log("🎨 Color Journey WASM module loaded successfully.");
         } catch (e) {
-            console.error("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", "Path checked: /color_journey.js from public/", e);
+            console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
             wasmApi = null;
         } finally {
             isLoadingWasm = false;
@@ -218,7 +226,7 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
 async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
     if (!wasmApi) return generatePaletteTS(config);
     const { malloc, free, memory, generate } = wasmApi;
-    const configSize = 120;
+    const configSize = 129; // Increased size for new fields
     const configPtr = malloc(configSize);
     const okAnchors = config.anchors.map(hex => srgbToOklab(hexToRgb(hex)));
     const anchorsPtr = malloc(okAnchors.length * 24); // 3 doubles * 8 bytes
@@ -247,6 +255,9 @@ async function generatePaletteWasm(config: ColorJourneyConfig): Promise<Generate
         configView.setFloat64(108, config.dynamics.curveStrength || 1.0, true);
         const varModes = { off: 0, subtle: 1, noticeable: 2 };
         configView.setInt32(116, varModes[config.variation.mode], true);
+        // New fields
+        configView.setUint8(120, config.dynamics.enableColorCircle ? 1 : 0);
+        configView.setFloat64(121, config.dynamics.arcLength || 0, true); // Aligned to 121, C struct will handle padding
         const anchorsView = new Float64Array(memory, anchorsPtr, okAnchors.length * 3);
         okAnchors.forEach((c, i) => anchorsView.set([c.l, c.a, c.b], i * 3));
         const resultPtr = generate(configPtr, anchorsPtr);

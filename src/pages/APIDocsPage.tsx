@@ -13,7 +13,7 @@ const CodeBlock = ({ code, language }: { code: string; language: string }) => {
     copyToClipboard(code).then(success => {
       if (success) {
         toast.success('Copied to clipboard!');
-        console.log('Copied code block');
+        console.log('Copied API example');
       } else {
         toast.error('Failed to copy.');
       }
@@ -40,7 +40,9 @@ const requestBodyExample = `{
     "chroma": 1.0,
     "contrast": 0.05,
     "vibrancy": 0.5,
-    "warmth": 0
+    "warmth": 0,
+    "enableColorCircle": false,
+    "arcLength": 0
   },
   "variation": {
     "mode": "off",
@@ -92,13 +94,13 @@ export function APIDocsPage() {
                 <div className="space-y-4">
                   <h3 className="text-2xl font-display font-semibold">Examples</h3>
                   <Accordion type="single" collapsible defaultValue="item-1">
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ delay: 0.1 }}>
                       <AccordionItem value="item-1">
                         <AccordionTrigger>cURL</AccordionTrigger>
                         <AccordionContent><CodeBlock code={curlExample} language="bash" /></AccordionContent>
                       </AccordionItem>
                     </motion.div>
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ delay: 0.2 }}>
                       <AccordionItem value="item-2">
                         <AccordionTrigger>JavaScript Fetch</AccordionTrigger>
                         <AccordionContent><CodeBlock code={fetchExample} language="javascript" /></AccordionContent>
@@ -138,7 +140,7 @@ export function APIDocsPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). This project is licensed under the MIT License.</p>
+          <p>Copyright �� 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />
