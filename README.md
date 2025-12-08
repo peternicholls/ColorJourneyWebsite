@@ -7,7 +7,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 - **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast, with perceptual guarantees including minimum ΔE enforcement for distinctness and midpoint vibrancy boosts to avoid muddy tones.
 - **High-Performance C Core**: Core logic written in C and compiled to WebAssembly for near-native performance in the browser and on the edge.
 - **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load, ensuring identical outputs.
-- **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves to create curated, not mechanical, journeys.
+- **Journey Routes**: Single or multi-anchor (2���5) color paths with designed non-linear pacing and easing curves to create curated, not mechanical, journeys.
 - **Perceptual Dynamics**: High-level controls for lightness bias, chroma multiplier, contrast enforcement (minimum OKLab ΔE), and more.
 - **Perceptual Enforcement**: Iterative ΔE nudges ensure minimum color separation with adaptive reuse for large palettes.
 - **Advanced Dynamics**: Bezier curves for path shaping, preset biases, and midpoint vibrancy boosts.
@@ -84,6 +84,11 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
 ## Troubleshooting
 - **Radix UI Ref Warnings**: These warnings are generally benign and relate to internal ref forwarding within `shadcn/ui` primitives. They do not affect functionality. Ensure your dependencies are up to date.
 - **WASM Load Failures**: If WASM fails to load, the app seamlessly uses the TypeScript fallback with identical outputs. To enable the high-performance WASM module, run `./src/wasm/build-wasm.sh` and refresh the page. In your browser's developer tools Network tab, verify that `color_journey.js` and `color_journey.wasm` are successfully fetched from `/assets/`.
+- **Vite 'browserHash' Error**: This can occur during dependency updates if the WASM build process interferes with Vite's file watcher, leading to a `TypeError`. To fix:
+  1.  Ensure the Emscripten SDK is active: `source ./emsdk_env.sh`
+  2.  Clear Vite's cache: `rm -rf node_modules/.vite`
+  3.  Rebuild the WASM module: `./src/wasm/build-wasm.sh`
+  4.  Restart the development server: `bun dev`
 ## Determinism Verification
 The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes.
 To verify:
@@ -92,6 +97,7 @@ To verify:
 3.  Temporarily disable WASM by renaming `public/assets/color_journey.wasm`.
 4.  Refresh the page. The app will use the TS fallback and produce the exact same palette.
 ## Deployment Checklist
+0.  **Clear caches and verify Emscripten** to prevent build-time TypeErrors.
 1.  Run `./src/wasm/build-wasm.sh` to compile the C core.
 2.  Run `bun build` to build the frontend application.
 3.  Run `wrangler deploy` to deploy to Cloudflare Workers.
