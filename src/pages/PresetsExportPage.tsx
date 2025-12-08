@@ -24,6 +24,18 @@ const BUILT_IN_PRESETS: { name: string; config: ColorJourneyConfig }[] = [
     name: "Pastel Drift",
     config: { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6"], numColors: 10, loop: 'closed', granularity: 'discrete', dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, biasPreset: 'lighter', enableColorCircle: false, arcLength: 0, curveStyle: 'ease-out', curveDimensions: ['all'], curveStrength: 0.8 }, variation: { mode: 'subtle', seed: 2024 } }
   },
+  {
+    name: "High Contrast AAA",
+    config: { anchors: ['#000000', '#FFFFFF'], numColors: 8, loop: 'open', granularity: 'discrete', dynamics: {lightness: 0, chroma: 0.5, contrast: 0.1, vibrancy: 0.4, warmth: 0, biasPreset: 'aaa-safe', curveStyle: 'linear', curveDimensions: ['L'], curveStrength: 1}, variation: {mode: 'off', seed: 999} }
+  },
+  {
+    name: "Organic Loop",
+    config: { anchors: ['#F38020'], numColors: 12, loop: 'closed', granularity: 'discrete', dynamics: {lightness: 0.1, chroma: 1.0, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'sinusoidal', curveDimensions: ['all'], curveStrength: 0.8}, variation: {mode: 'subtle', seed: 42} }
+  },
+  {
+    name: "Night Mode Deep",
+    config: { anchors: ['#1a1a2e', '#16213e'], numColors: 10, loop: 'ping-pong', granularity: 'discrete', dynamics: {lightness: -0.3, chroma: 1.2, contrast: 0.08, vibrancy: 0.3, warmth: -0.1, biasPreset: 'darker', curveStyle: 'ease-out', curveDimensions: ['L', 'C'], curveStrength: 1}, variation: {mode: 'off', seed: 123} }
+  },
 ];
 const PRESETS_STORAGE_KEY = 'cj-presets';
 export function PresetsExportPage() {

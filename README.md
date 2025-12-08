@@ -7,13 +7,14 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 - **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast, with perceptual guarantees including minimum ΔE enforcement for distinctness and midpoint vibrancy boosts to avoid muddy tones.
 - **High-Performance C Core**: Core logic written in C and compiled to WebAssembly for near-native performance in the browser and on the edge.
 - **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load, ensuring identical outputs.
-- **Journey Routes**: Single or multi-anchor (2���5) color paths with designed non-linear pacing and easing curves to create curated, not mechanical, journeys.
+- **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves to create curated, not mechanical, journeys.
 - **Perceptual Dynamics**: High-level controls for lightness bias, chroma multiplier, contrast enforcement (minimum OKLab ΔE), and more.
 - **Perceptual Enforcement**: Iterative ΔE nudges ensure minimum color separation with adaptive reuse for large palettes.
 - **Advanced Dynamics**: Bezier curves for path shaping, preset biases, and midpoint vibrancy boosts.
 - **Granularity Modes**: Continuous gradients or discrete quantized palettes with patterned reuse for large sets.
 - **Seeded Variation Layer**: Optional subtle, structured perturbations for an organic feel, with deterministic outputs via a seed.
 - **Interactive Playground**: Real-time previews, diagnostics (ΔE metrics, WCAG contrast), presets, and exports (CSS variables, JSON).
+- **Curated Presets**: Includes **Default**, **Pastel Drift**, **Vivid Sunset**, **Ocean Deep**, **High Contrast AAA** (emphasizes WCAG AAA contrast), **Organic Loop** (demonstrates closed looping and subtle variation), and **Night Mode Deep** (showcases dark tones with ping-pong traversal).
 - **Edge API**: Cloudflare Worker endpoint for server-side generation, ensuring consistent results across platforms.
 ## Tech Stack
 - **Frontend**: React 18, React Router 6, TypeScript, Vite
@@ -60,6 +61,12 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     bunx wrangler dev
     ```
     The edge API will be at `http://localhost:8787/api/color-journey`.
+### Built-in Presets Showcase
+The included presets demonstrate the engine's core perceptual guarantees:
+- **High Contrast AAA**: Guarantees WCAG AAA readability by enforcing a high minimum ΔE (perceptual distance) between colors, ideal for accessible UI themes.
+- **Organic Loop**: Creates a seamless, repeating palette for cyclic timelines or patterns, using sinusoidal easing and a subtle variation layer for a natural, less-mechanical feel.
+- **Night Mode Deep**: Explores dark, rich tones with a ping-pong loop, showcasing how the engine maintains vibrancy and avoids muddy midpoints even in low-lightness journeys.
+- **Pastel Drift & Vivid Sunset**: Highlight the engine's control over chroma (saturation) and lightness to produce soft, airy palettes or bold, energetic ones.
 ## Building the C Core (WebAssembly)
 ### Build Script (`src/wasm/build-wasm.sh`)
 A convenience script is provided to simplify compilation. Run `./src/wasm/build-wasm.sh` after activating the Emscripten SDK. This generates both the `color_journey.js` loader and the `color_journey.wasm` binary.
