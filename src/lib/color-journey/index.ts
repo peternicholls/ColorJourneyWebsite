@@ -12,16 +12,31 @@ function initWasm() {
     if (wasmLoadPromise) return wasmLoadPromise;
     wasmLoadPromise = (async () => {
         try {
-            // 1. Pre-flight check to see if the WASM loader script exists
-            const response = await fetch('/color_journey.js', { method: 'HEAD' });
-            if (!response.ok) {
-                throw new Error(`WASM loader not found at /color_journey.js: ${response.status}`);
+            // Use a variable URL to avoid static Vite/TS resolution.
+            const wasmUrl = '/assets/color_journey.js';
+            // 1. Pre-flight HEAD check with timeout
+            const headController = new AbortController();
+            const headTimeout = setTimeout(() => headController.abort(), 3000);
+            let headOk = false;
+            try {
+                const headResp = await fetch(wasmUrl, { method: 'HEAD', signal: headController.signal });
+                headOk = headResp && headResp.ok;
+            } catch (e) {
+                headOk = false;
+            } finally {
+                clearTimeout(headTimeout);
             }
-            // 2. Attempt to dynamically import with a timeout
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            const { default: Module } = await import(/* @vite-ignore */ '/color_journey.js');
-            clearTimeout(timeoutId);
+            if (!headOk) {
+                // Informative message for developers, then fall back to TS impl without throwing.
+                console.warn('WASM not built—run ./src/wasm/build-wasm.sh');
+                wasmApi = null;
+                return;
+            }
+            // 2. Dynamic import with an enforced timeout via Promise.race
+            const importPromise = import(/* @vite-ignore */ wasmUrl);
+            const importTimeout = new Promise((_res, rej) => setTimeout(() => rej(new Error('WASM import timeout')), 5000));
+            const mod = await Promise.race([importPromise, importTimeout]);
+            const Module = (mod && (mod.default || mod)) as any;
             const moduleInstance = await Module({ noInitialRun: true });
             wasmApi = {
                 generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),

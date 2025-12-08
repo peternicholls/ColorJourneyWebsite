@@ -11,10 +11,10 @@ then
 fi
 echo "Building Color Journey WASM module..."
 # Create output directory if it doesn't exist
-mkdir -p public
+mkdir -p public/assets
 # Compile C sources to a JS loader + WASM file
 emcc src/wasm/oklab.c src/wasm/color_journey.c \
-  -o public/color_journey.js \
+  -o public/assets/color_journey.js \
   -s WASM=1 \
   -s MODULARIZE=1 \
   -s EXPORT_ES6=1 \
@@ -24,8 +24,8 @@ emcc src/wasm/oklab.c src/wasm/color_journey.c \
   -s ALLOW_MEMORY_GROWTH=1 \
   -O3
 # Check if the build was successful and files have a reasonable size
-JS_SIZE=$(stat -c%s public/color_journey.js 2>/dev/null || echo 0)
-WASM_SIZE=$(stat -c%s public/color_journey.wasm 2>/dev/null || echo 0)
+JS_SIZE=$(stat -c%s public/assets/color_journey.js 2>/dev/null || echo 0)
+WASM_SIZE=$(stat -c%s public/assets/color_journey.wasm 2>/dev/null || echo 0)
 if [[ $JS_SIZE -lt 10240 || $WASM_SIZE -lt 51200 ]]; then
   echo "❌ Build incomplete: Files are too small or missing."
   echo "   - JS size: $JS_SIZE bytes (expected >10KB)"
@@ -34,5 +34,5 @@ if [[ $JS_SIZE -lt 10240 || $WASM_SIZE -lt 51200 ]]; then
   exit 1
 fi
 echo "✅ WASM built successfully:"
-echo "   - public/color_journey.js ($(du -h public/color_journey.js | cut -f1))"
-echo "   - public/color_journey.wasm ($(du -h public/color_journey.wasm | cut -f1))"
+echo "   - public/assets/color_journey.js ($(du -h public/assets/color_journey.js | cut -f1))"
+echo "   - public/assets/color_journey.wasm ($(du -h public/assets/color_journey.wasm | cut -f1))"
