@@ -245,15 +245,17 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                 <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Traversal Style</Label>
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(CURVE_STYLE_MAP).map(([key, { name }]) => (
-                              <SelectItem key={key} value={key} className={cn(config.dynamics.curveStyle === key && "shadow-glow")}>{name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <TooltipTrigger>
+                        <div>
+                          <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(CURVE_STYLE_MAP).map(([key, { name }]) => (
+                                <SelectItem key={key} value={key} className={cn(config.dynamics.curveStyle === key && "shadow-glow")}>{name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </TooltipTrigger>
                       <TooltipContent><p>Controls non-linear pacing along the journey path.</p></TooltipContent>
                     </Tooltip>
