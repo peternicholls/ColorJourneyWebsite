@@ -39,6 +39,18 @@ export function HomePage() {
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingWasm, setIsLoadingWasm] = useState(true);
+  const useDebounce = <T,>(value: T, delay: number): T => {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+    return debouncedValue;
+  }
   const debouncedConfig = useDebounce(config, 200);
   useEffect(() => {
     const checkWasmLoading = () => {
@@ -53,13 +65,13 @@ export function HomePage() {
     return () => clearInterval(wasmCheckInterval);
   }, []);
   useEffect(() => {
+    if (isLoadingWasm) return;
     setIsLoading(true);
     ColorJourneyEngine.generate(debouncedConfig).then((res) => {
       setResult(res);
       setIsLoading(false);
     });
-  }, [debouncedConfig]);
-
+  }, [debouncedConfig, isLoadingWasm]);
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Header />
@@ -86,48 +98,48 @@ export function HomePage() {
                 Generate designer-grade, perceptually-aware color sequences with fine-tuned controls, guaranteed contrast, and optional organic variation.
               </motion.p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+            <motion.div 
+              className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12"
+              variants={{
+                hidden: { opacity: 0 },
+                show: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.1,
+                  },
+                },
+              }}
+              initial="hidden"
+              animate="show"
+            >
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
+                variants={{ hidden: { opacity: 0, x: -20 }, show: { opacity: 1, x: 0 } }}
+                transition={{ duration: 0.5 }}
                 className="md:col-span-1"
               >
                 <ColorJourneyControls config={config} onConfigChange={setConfig} isLoadingWasm={isLoadingWasm} />
               </motion.div>
               <motion.div
                 className="md:col-span-2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3, duration: 0.5 }}
+                variants={{ hidden: { opacity: 0, x: 20 }, show: { opacity: 1, x: 0 } }}
+                transition={{ duration: 0.5 }}
               >
                 <PaletteViewer
                   result={result}
-                  isLoading={isLoading || isLoadingWasm}
+                  isLoading={isLoading}
+                  isLoadingWasm={isLoadingWasm}
                 />
               </motion.div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright © 2025 Peter Nicholls. This project is licensed under the MIT License - see <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">LICENSE</a> file for details.</p>
+          <p>Built with ❤️ at Cloudflare. Copyright © 2025 Peter Nicholls. This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />
     </div>
   );
-}
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
 }

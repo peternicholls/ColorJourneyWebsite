@@ -48,7 +48,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     ```bash
     ./src/wasm/build-wasm.sh
     ```
-    This will create `color_journey.wasm` in the `public/assets/` directory.
+    This will create `color_journey.js` and `color_journey.wasm` in the `public/assets/` directory.
 ### Development
 1.  Start the development server:
     ```bash
@@ -60,28 +60,16 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     bunx wrangler dev
     ```
     The edge API will be at `http://localhost:8787/api/color-journey`.
-## Usage Notes
-- **WASM Loading**: The application attempts to load `/assets/color_journey.wasm` on startup. If it's missing or fails, the app gracefully falls back to the TypeScript engine with full functionality. Ensure you run the build script after activating the Emscripten SDK.
-- **Programmatic API**: Access programmatically via `POST /api/color-journey` for dynamic, deterministic outputs in your apps, ensuring designer-intent palettes at the edge. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP.
-- **Pages**: The application is split into three main pages:
-    - `/`: The main interactive Playground.
-    - `/presets`: A page to save, load, and manage custom presets in `localStorage`.
-    - `/docs`: Documentation for the server-side API.
-- **Presets**: Presets are stored in your browser's `localStorage`. You can export them as JSON to share or back them up.
 ## Building the C Core (WebAssembly)
-The portable C implementation handles all core logic. Sources are in `/src/wasm/`.
 ### Build Script (`src/wasm/build-wasm.sh`)
-A convenience script is provided to simplify compilation. Run `./src/wasm/build-wasm.sh` after activating the Emscripten SDK.
-### Optimizations from External Repo
-The C core integrates an optimized implementation based on work from [Peter Nicholls' ColorJourney repository](https://github.com/peternicholls/ColorJourney/tree/copilot/document-color-swatch-specification). Key enhancements include:
--   **Perceptual Stepping**: Eased hue traversal for non-linear, more natural color journeys.
--   **ΔE Enforcement**: Iterative nudges to lightness, chroma, and hue to guarantee minimum perceptual distance between colors.
--   **Multi-dimensional Traversal**: For large palettes (>20 colors), applies sinusoidal lightness shifts, cosine-based chroma pulses, and hue offsets to maximize distinctness.
--   **Vibrancy Boost**: Enhances chroma at the midpoint of segments to prevent muddy, desaturated colors.
+A convenience script is provided to simplify compilation. Run `./src/wasm/build-wasm.sh` after activating the Emscripten SDK. This generates both the `color_journey.js` loader and the `color_journey.wasm` binary.
+### Troubleshooting WASM
+- **Build Fails**: Ensure the Emscripten SDK is correctly installed and activated in your current shell session (`emcc` command should be available).
+- **Loading Fails in Browser**: Open your browser's developer tools. In the Network tab, check if `color_journey.js` and `color_journey.wasm` are successfully fetched from `/assets/`. A 404 error means the files are not being served correctly by Vite. Ensure they exist in the `public/assets/` directory. The application will automatically use the TypeScript implementation if the WASM module cannot be loaded.
 ### Performance Testing
-Use your browser's developer tools to time palette generation. With the WASM module loaded, generating a 100-color palette should consistently take **<50ms**.
+Open the developer console in your browser. When you adjust parameters, a `wasm-gen` timer will log the time taken to generate the palette. With the WASM module loaded, generating a 100-color palette should consistently take **<50ms**.
 ### Determinism
-The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes, ensuring consistent output across all platforms and fallbacks.
+The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes. You can verify this by running the app, noting a generated palette, then disabling WASM (e.g., by renaming the file) and refreshing to see the TS fallback produce the same result.
 ## Deployment
 Deploy to Cloudflare Workers for an edge-hosted playground and API.
 1.  Build the WASM module:
@@ -96,7 +84,7 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
     ```bash
     bunx wrangler deploy
     ```
-    Wrangler automatically bundles all static assets from the output directory (including the `.wasm` file) and the Worker script.
+    Wrangler automatically bundles all static assets from the output directory (including the `.js` and `.wasm` files) and the Worker script.
 [cloudflarebutton]
 ---
 **Copyright © 2025 Peter Nicholls.** This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.

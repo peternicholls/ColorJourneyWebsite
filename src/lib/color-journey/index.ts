@@ -1,11 +1,10 @@
 import type { ColorJourneyConfig, GenerateResult, OKLabColor, RGBColor, ColorPoint, CurveStyle, CurveDimension } from '../../types/color-journey';
 // --- WASM Loader and State ---
-let wasmModule: any = null;
 let wasmApi: {
   generate: (configPtr: number, anchorsPtr: number) => number;
   malloc: (size: number) => number;
   free: (ptr: number) => void;
-  memory: WebAssembly.Memory;
+  memory: ArrayBuffer;
 } | null = null;
 let isLoadingWasm = true;
 let wasmLoadPromise: Promise<void> | null = null;
@@ -13,17 +12,14 @@ function initWasm() {
     if (wasmLoadPromise) return wasmLoadPromise;
     wasmLoadPromise = (async () => {
         try {
-            const response = await fetch('/assets/color_journey.wasm');
-            if (!response.ok) {
-                throw new Error(`Failed to fetch WASM module: ${response.statusText}`);
-            }
-            const module = await WebAssembly.instantiateStreaming(response, {});
-            const exports = module.instance.exports;
+            // Use dynamic import to load the Emscripten-generated JS module
+            const { default: Module } = await import('/assets/color_journey.js');
+            const moduleInstance = await Module();
             wasmApi = {
-                generate: exports.generate_discrete_palette as any,
-                malloc: exports.wasm_malloc as any,
-                free: exports.wasm_free as any,
-                memory: exports.memory as WebAssembly.Memory,
+                generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
+                malloc: moduleInstance._wasm_malloc,
+                free: moduleInstance._wasm_free,
+                memory: moduleInstance.HEAPU8.buffer,
             };
             console.log("🎨 Color Journey WASM module loaded successfully.");
         } catch (e) {
@@ -36,7 +32,7 @@ function initWasm() {
     return wasmLoadPromise;
 }
 initWasm();
-// --- TypeScript Fallback Implementation ---
+// --- TypeScript Fallback Implementation (unchanged from previous state) ---
 const M1 = [[0.4122214708, 0.5363325363, 0.0514459929], [0.2119034982, 0.6806995451, 0.1073969566], [0.0883024619, 0.2817188376, 0.6299787005]];
 const M2 = [[0.2104542553, 0.7936177850, -0.0040720468], [1.9779984951, -2.4285922050, 0.4505937099], [0.0259040371, 0.7827717662, -0.8086757660]];
 function srgbToLinear(c: number): number { return c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92; }
@@ -222,12 +218,13 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
 async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
     if (!wasmApi) return generatePaletteTS(config);
     const { malloc, free, memory, generate } = wasmApi;
-    const configSize = 88; // Size of CJ_Config in bytes
+    const configSize = 120;
     const configPtr = malloc(configSize);
     const okAnchors = config.anchors.map(hex => srgbToOklab(hexToRgb(hex)));
     const anchorsPtr = malloc(okAnchors.length * 24); // 3 doubles * 8 bytes
     try {
-        const configView = new DataView(memory.buffer, configPtr, configSize);
+        const configView = new DataView(memory, configPtr, configSize);
+        const heapU8 = new Uint8Array(memory);
         configView.setFloat64(0, config.dynamics.lightness, true);
         configView.setFloat64(8, config.dynamics.chroma, true);
         configView.setFloat64(16, config.dynamics.contrast, true);
@@ -235,25 +232,30 @@ async function generatePaletteWasm(config: ColorJourneyConfig): Promise<Generate
         configView.setFloat64(32, config.dynamics.warmth, true);
         configView.setFloat64(40, config.dynamics.bezierLight?.[0] ?? 0.5, true);
         configView.setFloat64(48, config.dynamics.bezierLight?.[1] ?? 0.5, true);
-        // Skipping bezierChroma for this example struct
-        configView.setUint32(56, config.variation.seed, true);
-        configView.setInt32(60, config.numColors, true);
-        configView.setInt32(64, okAnchors.length, true);
+        configView.setFloat64(56, config.dynamics.bezierChroma?.[0] ?? 0.5, true);
+        configView.setFloat64(64, config.dynamics.bezierChroma?.[1] ?? 0.5, true);
+        configView.setUint32(72, config.variation.seed, true);
+        configView.setInt32(76, config.numColors, true);
+        configView.setInt32(80, okAnchors.length, true);
         const loopModes = { open: 0, closed: 1, 'ping-pong': 2 };
-        configView.setInt32(68, loopModes[config.loop], true);
+        configView.setInt32(84, loopModes[config.loop], true);
+        const curveStyleBytes = new TextEncoder().encode(config.dynamics.curveStyle || 'linear');
+        heapU8.set(curveStyleBytes, configPtr + 88);
+        const dims = config.dynamics.curveDimensions || ['all'];
+        const dimBitflag = (dims.includes('L') ? 1 : 0) | (dims.includes('C') ? 2 : 0) | (dims.includes('H') ? 4 : 0) | (dims.includes('all') ? 8 : 0);
+        configView.setInt32(104, dimBitflag, true);
+        configView.setFloat64(108, config.dynamics.curveStrength || 1.0, true);
         const varModes = { off: 0, subtle: 1, noticeable: 2 };
-        configView.setInt32(72, varModes[config.variation.mode], true);
-        configView.setUint8(76, config.dynamics.enableColorCircle ? 1 : 0);
-        configView.setFloat64(80, config.dynamics.arcLength || 0, true);
-        // Skipping curve_style, curve_dimensions, curve_strength for brevity
-        const anchorsView = new Float64Array(memory.buffer, anchorsPtr, okAnchors.length * 3);
+        configView.setInt32(116, varModes[config.variation.mode], true);
+        const anchorsView = new Float64Array(memory, anchorsPtr, okAnchors.length * 3);
         okAnchors.forEach((c, i) => anchorsView.set([c.l, c.a, c.b], i * 3));
         const resultPtr = generate(configPtr, anchorsPtr);
         const palette: ColorPoint[] = [];
         let totalIters = 0;
-        const resultView = new DataView(memory.buffer, resultPtr, config.numColors * 28);
+        const resultView = new DataView(memory, resultPtr);
+        const colorPointSize = 32; // 24 for oklab, 4 for rgb (padded), 4 for iters
         for (let i = 0; i < config.numColors; i++) {
-            const offset = i * 28;
+            const offset = i * colorPointSize;
             const ok: OKLabColor = {
                 l: resultView.getFloat64(offset, true),
                 a: resultView.getFloat64(offset + 8, true),
@@ -264,7 +266,7 @@ async function generatePaletteWasm(config: ColorJourneyConfig): Promise<Generate
                 g: resultView.getUint8(offset + 25) / 255,
                 b: resultView.getUint8(offset + 26) / 255,
             };
-            const iters = resultView.getInt32(offset + 24, true) >> 24; // Unpack from rgb bytes
+            const iters = resultView.getInt32(offset + 28, true);
             totalIters += iters;
             palette.push({ ok, rgb, hex: rgbToHex(rgb) });
         }

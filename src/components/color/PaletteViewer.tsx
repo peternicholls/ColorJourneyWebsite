@@ -1,21 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Download, Check, AlertTriangle, Award } from 'lucide-react';
+import { Copy, Download, Check, AlertTriangle, Award, Orbit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-
-
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { OKLab3DViewer } from './OKLab3DViewer';
 import { GenerateResult } from '@/types/color-journey';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
-
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
+  isLoadingWasm: boolean;
 }
 const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
   const badgeContent = isAaa ? 'AAA' : ratio >= 4.5 ? 'AA' : ratio >= 3 ? 'AA Large' : 'Fail';
@@ -51,7 +52,8 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
     </TooltipProvider>
   );
 };
-export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
+export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewerProps) {
+  const [show3D, setShow3D] = useState(false);
   const handleCopy = (content: string, type: string) => {
     copyToClipboard(content).then((success) => {
       if (success) toast.success(`${type} copied to clipboard!`);
@@ -62,6 +64,24 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
     ? `linear-gradient(to right, ${result.palette.map(p => p.hex).join(', ')})`
     : 'linear-gradient(to right, #eee, #ddd)';
   const diagnostics = result?.diagnostics;
+  if (isLoadingWasm) {
+    return (
+      <div className="space-y-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Journey Preview</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center gap-4 p-8">
+            <Skeleton className="w-full aspect-video rounded-lg" />
+            <div className="flex items-center gap-2 animate-pulse">
+              <Orbit className="h-5 w-5 text-muted-foreground animate-spin" />
+              <p className="text-sm text-muted-foreground">Loading Color Engine...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   return (
     <div className="space-y-8">
       <Card>
@@ -70,11 +90,16 @@ export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
             <CardTitle>Journey Preview</CardTitle>
             <CardDescription>Visualize the entire color journey.</CardDescription>
           </div>
-
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="3d-mode">3D View</Label>
+            <Switch id="3d-mode" checked={show3D} onCheckedChange={setShow3D} />
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="w-full aspect-video rounded-lg" />
+          ) : show3D && result?.palette ? (
+            <OKLab3DViewer palette={result.palette} />
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
