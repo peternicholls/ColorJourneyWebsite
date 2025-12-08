@@ -114,19 +114,19 @@ export function PresetsExportPage() {
                 <CardContent className="space-y-6">
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-2">Built-in Presets</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                       {BUILT_IN_PRESETS.map((preset) => (
-                        <motion.div key={preset.name} whileHover={{ scale: 1.02, y: -2 }} transition={{ type: "spring", stiffness: 300 }}>
+                        <motion.div key={preset.name} whileHover={{ scale: 1.02, rotate: 1 }} transition={{ type: "spring", stiffness: 300, damping: 10 }}>
                           <Card className="overflow-hidden">
                             <div className="h-16" style={{ background: `linear-gradient(to right, ${preset.config.anchors.join(', ')})` }} />
                             <CardHeader className="p-4">
                               <CardTitle className="text-base">{preset.name}</CardTitle>
                             </CardHeader>
                             <CardContent className="p-4 pt-0 flex gap-2">
-                              <Button size="sm" variant="outline" className="w-full" onClick={() => handleCopy(preset)}>
+                              <Button size="sm" variant="outline" className="w-full hover:shadow-glow active:scale-95" onClick={() => handleCopy(preset)}>
                                 <Copy className="mr-2 h-4 w-4" /> JSON
                               </Button>
-                              <Button size="sm" variant="outline" className="w-full" onClick={() => handleDownload(preset)}>
+                              <Button size="sm" variant="outline" className="w-full hover:shadow-glow active:scale-95" onClick={() => handleDownload(preset)}>
                                 <Download className="mr-2 h-4 w-4" /> Export
                               </Button>
                             </CardContent>
@@ -178,7 +178,7 @@ export function PresetsExportPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright �� 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
+          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

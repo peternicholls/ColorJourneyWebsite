@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Copy, Download, Check, AlertTriangle, Award, Orbit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { OKLab3DViewer } from './OKLab3DViewer';
 import { GenerateResult } from '@/types/color-journey';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
@@ -31,15 +32,15 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
         <TooltipTrigger asChild>
           <span tabIndex={0}>
             <Badge
-              className={
+              className={cn(
                 isAaa
-                  ? 'bg-green-600 hover:bg-green-700'
+                  ? 'bg-green-600 hover:bg-green-700 shadow-glow'
                   : ratio >= 4.5
                   ? 'bg-blue-600 hover:bg-blue-700'
                   : ratio >= 3
                   ? 'bg-yellow-500 hover:bg-yellow-600'
                   : 'bg-destructive hover:bg-destructive/90'
-              }
+              )}
             >
               {badgeContent}
             </Badge>
@@ -117,7 +118,15 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
           <CardDescription>Individually generated colors from the journey.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10 gap-4">
+          <motion.div
+            className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10 2xl:grid-cols-12 gap-4"
+            variants={{
+              visible: { transition: { staggerChildren: 0.02 } },
+              hidden: {},
+            }}
+            initial="hidden"
+            animate="visible"
+          >
             {isLoading && Array.from({ length: 20 }).map((_, i) => (
               <Skeleton key={i} className="w-full aspect-square rounded-md" />
             ))}
@@ -126,11 +135,12 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
+                      variants={{
+                        hidden: { opacity: 0, scale: 0.8 },
+                        visible: { opacity: 1, scale: 1 },
+                      }}
                       whileHover={{ scale: 1.05, y: -4, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
-                      transition={{ duration: 0.3, delay: index * 0.02 }}
-                      className="w-full aspect-square rounded-md cursor-pointer"
+                      className="w-full aspect-square rounded-md cursor-pointer hover:shadow-glow"
                       style={{ backgroundColor: color.hex }}
                       onClick={() => handleCopy(color.hex, 'Hex code')}
                     />
@@ -144,7 +154,7 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
                 </Tooltip>
               </TooltipProvider>
             ))}
-          </div>
+          </motion.div>
         </CardContent>
       </Card>
       <Card>
@@ -161,18 +171,18 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
               </TableRow>
             </TableHeader>
             <TableBody>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
                 <TableCell>Min. Perceptual Distance (ΔE)</TableCell>
                 <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : (diagnostics?.minDeltaE != null ? diagnostics.minDeltaE.toFixed(3) : 'N/A')}</TableCell>
               </motion.tr>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
                 <TableCell>Min. WCAG Ratio (vs black/white)</TableCell>
                 <TableCell className="text-right font-mono flex items-center justify-end gap-2">
                   {isLoading ? <Skeleton className="h-5 w-16" /> : (diagnostics?.wcagMinRatio != null ? diagnostics.wcagMinRatio.toFixed(2) : 'N/A')}
                   {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} isAaa={diagnostics.aaaCompliant} />}
                 </TableCell>
               </motion.tr>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
                 <TableCell>Traversal Strategy</TableCell>
                 <TableCell className="text-right">
                   {isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (
@@ -191,7 +201,7 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
                   )}
                 </TableCell>
               </motion.tr>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.25 }}>
+              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
                 <TableCell>Enforcement Iterations</TableCell>
                 <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.enforcementIters ?? '0'}</TableCell>
               </motion.tr>

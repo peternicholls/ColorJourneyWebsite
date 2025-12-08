@@ -43,6 +43,10 @@ const CURVE_STYLE_MAP: { [key in CurveStyle]: { name: string, description: strin
   'stepped': { name: 'Stepped', description: 'Creates discrete jumps for segmented palettes.', bezier: [0, 0] },
   'custom': { name: 'Custom', description: 'Manually define the Bezier curve points.', bezier: [0.5, 0.5] },
 };
+const motionVariants = {
+  hidden: { opacity: 0, y: -10 },
+  visible: { opacity: 1, y: 0 },
+};
 export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: ColorJourneyControlsProps) {
   const [selectedPreset, setSelectedPreset] = useState('');
   const [bezierErrors, setBezierErrors] = useState({ bezierLight: [false, false], bezierChroma: [false, false] });
@@ -170,67 +174,63 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
         <Accordion type="multiple" defaultValue={['dynamics']} className="w-full">
           <AccordionItem value="dynamics">
             <AccordionTrigger className="text-sm font-medium">Dynamics</AccordionTrigger>
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+            <motion.div initial="hidden" animate="visible" exit="hidden" variants={{ visible: { opacity: 1, height: 'auto' }, hidden: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, staggerChildren: 0.05 }}>
               <AccordionContent className="space-y-4 pt-2">
-                <div className="space-y-2">
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Bias Preset</Label>
                   <Select value={config.dynamics.biasPreset || 'neutral'} onValueChange={(v: BiasPreset) => applyBias(v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{Object.keys(BIAS_MAP).map(b => <SelectItem key={b} value={b}>{b.charAt(0).toUpperCase() + b.slice(1).replace('-', ' ')}</SelectItem>)}</SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
+                </motion.div>
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Lightness ({config.dynamics.lightness.toFixed(2)})</Label>
                   <Slider value={[config.dynamics.lightness]} onValueChange={([v]) => handleDynamicsChange('lightness', v)} min={-1} max={1} step={0.05} />
-                </div>
-                <div className="space-y-2">
+                </motion.div>
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Chroma ({config.dynamics.chroma.toFixed(2)})</Label>
                   <Slider value={[config.dynamics.chroma]} onValueChange={([v]) => handleDynamicsChange('chroma', v)} min={0} max={2} step={0.05} />
-                </div>
-                <div className="space-y-2">
+                </motion.div>
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Contrast ({config.dynamics.contrast.toFixed(2)})</Label>
                   <Slider value={[config.dynamics.contrast]} onValueChange={([v]) => handleDynamicsChange('contrast', v)} min={0} max={1} step={0.01} />
-                </div>
-                <div className="space-y-2">
+                </motion.div>
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Midpoint Vibrancy ({config.dynamics.vibrancy.toFixed(2)})</Label>
                   <Slider value={[config.dynamics.vibrancy]} onValueChange={([v]) => handleDynamicsChange('vibrancy', v)} min={0} max={1} step={0.05} disabled={isLoadingWasm} />
-                </div>
+                </motion.div>
               </AccordionContent>
             </motion.div>
           </AccordionItem>
           <AccordionItem value="journey-mode">
             <AccordionTrigger className="text-sm font-medium">Journey Mode (Single Anchor)</AccordionTrigger>
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+            <motion.div initial="hidden" animate="visible" exit="hidden" variants={{ visible: { opacity: 1, height: 'auto' }, hidden: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, staggerChildren: 0.05 }}>
               <AccordionContent className="space-y-4 pt-2">
-                <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                <motion.div variants={motionVariants} className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
                   <div className="space-y-0.5">
                     <TooltipProvider>
                       <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Label>Enable Color Circle</Label>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Enable hue traversal after perceptual variations.</p>
-                        </TooltipContent>
+                        <TooltipTrigger asChild><Label>Enable Color Circle</Label></TooltipTrigger>
+                        <TooltipContent><p>Enable hue traversal after perceptual variations.</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     <p className="text-xs text-muted-foreground">Extend journey via color wheel arc.</p>
                   </div>
                   <Switch checked={config.dynamics.enableColorCircle || false} onCheckedChange={checked => handleDynamicsChange('enableColorCircle', checked)} disabled={isLoadingWasm || config.anchors.length > 1} />
-                </div>
-                <div className="space-y-2">
+                </motion.div>
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Arc Length ({(config.dynamics.arcLength || 0).toFixed(0)}°)</Label>
                   <Slider value={[(config.dynamics.arcLength || 0)]} onValueChange={([v]) => handleDynamicsChange('arcLength', v)} min={0} max={360} step={10} disabled={!config.dynamics.enableColorCircle || isLoadingWasm || config.anchors.length > 1} />
                   <p className="text-xs text-muted-foreground">0° = perceptual variations only.</p>
-                </div>
+                </motion.div>
               </AccordionContent>
             </motion.div>
           </AccordionItem>
           <AccordionItem value="journey-traversal">
             <AccordionTrigger className="text-sm font-medium">Journey Traversal</AccordionTrigger>
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3, delay: 0.3 }}>
+            <motion.div initial="hidden" animate="visible" exit="hidden" variants={{ visible: { opacity: 1, height: 'auto' }, hidden: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, staggerChildren: 0.05 }}>
               <AccordionContent className="space-y-4 pt-2">
-                <div className="space-y-2">
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Traversal Style</Label>
                   <TooltipProvider>
                     <Tooltip>
@@ -238,8 +238,8 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                         <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {Object.entries(CURVE_STYLE_MAP).map(([key, { name, description }]) => (
-                              <SelectItem key={key} value={key}>{name}</SelectItem>
+                            {Object.entries(CURVE_STYLE_MAP).map(([key, { name }]) => (
+                              <SelectItem key={key} value={key} className={cn(config.dynamics.curveStyle === key && "shadow-glow")}>{name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -247,9 +247,9 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                       <TooltipContent><p>Controls non-linear pacing along the journey path.</p></TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </div>
+                </motion.div>
                 {config.dynamics.curveStyle === 'custom' && (
-                  <div className="space-y-2">
+                  <motion.div variants={motionVariants} className="space-y-2">
                     <Label>Custom Bezier (P1, P2)</Label>
                     <TooltipProvider>
                       <Tooltip>
@@ -262,24 +262,15 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                         <TooltipContent><p>Bezier control points (0.0-1.0) for custom easing curve.</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-                  </div>
+                  </motion.div>
                 )}
-                <div className="space-y-2">
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Apply To</Label>
-                  <div className="flex flex-row flex-wrap gap-4 justify-start items-center">
+                  <div className="flex flex-row flex-wrap gap-x-4 gap-y-2 sm:gap-2 justify-start items-center">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <label className="flex items-center gap-2 min-w-[100px]">
-                            <input
-                              type="checkbox"
-                              aria-label="Apply curve to Lightness"
-                              checked={curveDimensions.includes('L')}
-                              onChange={(e) => handleCurveDimensionChange('L', e.target.checked)}
-                              className="h-4 w-4"
-                            />
-                            <span className="ml-2">Lightness</span>
-                          </label>
+                          <label className="flex items-center gap-2 min-w-[80px]"><input type="checkbox" aria-label="Apply curve to Lightness" checked={curveDimensions.includes('L')} onChange={(e) => handleCurveDimensionChange('L', e.target.checked)} className="h-4 w-4" /><span className="ml-2">Lightness</span></label>
                         </TooltipTrigger>
                         <TooltipContent><p>Non-linear pacing of perceived brightness (OKLab L) for tonal curves.</p></TooltipContent>
                       </Tooltip>
@@ -287,16 +278,7 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <label className="flex items-center gap-2 min-w-[100px]">
-                            <input
-                              type="checkbox"
-                              aria-label="Apply curve to Chroma"
-                              checked={curveDimensions.includes('C')}
-                              onChange={(e) => handleCurveDimensionChange('C', e.target.checked)}
-                              className="h-4 w-4"
-                            />
-                            <span className="ml-2">Chroma</span>
-                          </label>
+                          <label className="flex items-center gap-2 min-w-[80px]"><input type="checkbox" aria-label="Apply curve to Chroma" checked={curveDimensions.includes('C')} onChange={(e) => handleCurveDimensionChange('C', e.target.checked)} className="h-4 w-4" /><span className="ml-2">Chroma</span></label>
                         </TooltipTrigger>
                         <TooltipContent><p>Shapes saturation (OKLab chroma) for richer/muted transitions.</p></TooltipContent>
                       </Tooltip>
@@ -304,24 +286,15 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <label className="flex items-center gap-2 min-w-[100px]">
-                            <input
-                              type="checkbox"
-                              aria-label="Apply curve to Hue"
-                              checked={curveDimensions.includes('H')}
-                              onChange={(e) => handleCurveDimensionChange('H', e.target.checked)}
-                              className="h-4 w-4"
-                            />
-                            <span className="ml-2">Hue</span>
-                          </label>
+                          <label className="flex items-center gap-2 min-w-[80px]"><input type="checkbox" aria-label="Apply curve to Hue" checked={curveDimensions.includes('H')} onChange={(e) => handleCurveDimensionChange('H', e.target.checked)} className="h-4 w-4" /><span className="ml-2">Hue</span></label>
                         </TooltipTrigger>
                         <TooltipContent><p>Modulates color angle (OKLab a/b) for warm/cool emphasis.</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
                     <Button variant="ghost" size="sm" onClick={handleSelectAllCurve}>Select All</Button>
                   </div>
-                </div>
-                <div className="space-y-2">
+                </motion.div>
+                <motion.div variants={motionVariants} className="space-y-2">
                   <Label>Strength ({(config.dynamics.curveStrength || 1).toFixed(2)})</Label>
                   <TooltipProvider>
                     <Tooltip>
@@ -331,26 +304,28 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                       <TooltipContent><p>Intensity of curve effect (0=linear, 1=full).</p></TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                </div>
+                </motion.div>
               </AccordionContent>
             </motion.div>
           </AccordionItem>
           <AccordionItem value="variation">
             <AccordionTrigger className="text-sm font-medium">Variation</AccordionTrigger>
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3 }}>
+            <motion.div initial="hidden" animate="visible" exit="hidden" variants={{ visible: { opacity: 1, height: 'auto' }, hidden: { opacity: 0, height: 0 } }} transition={{ duration: 0.3, staggerChildren: 0.05 }}>
               <AccordionContent className="space-y-4 pt-2">
-                <Select value={config.variation.mode} onValueChange={(v: VariationMode) => onConfigChange({ ...config, variation: { ...config.variation, mode: v } })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="off">Off</SelectItem>
-                    <SelectItem value="subtle">Subtle</SelectItem>
-                    <SelectItem value="noticeable">Noticeable</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-2">
+                <motion.div variants={motionVariants}>
+                  <Select value={config.variation.mode} onValueChange={(v: VariationMode) => onConfigChange({ ...config, variation: { ...config.variation, mode: v } })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="off">Off</SelectItem>
+                      <SelectItem value="subtle">Subtle</SelectItem>
+                      <SelectItem value="noticeable">Noticeable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </motion.div>
+                <motion.div variants={motionVariants} className="flex items-center gap-2">
                   <Input type="number" value={config.variation.seed} onChange={(e) => onConfigChange({ ...config, variation: { ...config.variation, seed: parseInt(e.target.value, 10) || 0 } })} className="min-h-10" />
                   <Button variant="outline" size="icon" onClick={randomizeSeed}><Dices className="h-4 w-4" /></Button>
-                </div>
+                </motion.div>
               </AccordionContent>
             </motion.div>
           </AccordionItem>

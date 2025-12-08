@@ -63,20 +63,6 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 ## Building the C Core (WebAssembly)
 ### Build Script (`src/wasm/build-wasm.sh`)
 A convenience script is provided to simplify compilation. Run `./src/wasm/build-wasm.sh` after activating the Emscripten SDK. This generates both the `color_journey.js` loader and the `color_journey.wasm` binary.
-### Troubleshooting WASM
-- **Build Fails**: Ensure the Emscripten SDK is correctly installed and activated in your current shell session (`emcc` command should be available).
-- **Loading Fails in Browser**: If WASM fails to load (you may see a console info message), the app seamlessly uses the TypeScript fallback with identical outputs. To enable the high-performance WASM module, run `./src/wasm/build-wasm.sh` and refresh the page. In your browser's developer tools Network tab, verify that `color_journey.js` and `color_journey.wasm` are successfully fetched from `/assets/`.
-### Performance Benchmarks
-Open the developer console in your browser. When you adjust parameters, a `wasm-gen` timer will log the time taken to generate the palette.
-- **WASM**: <50ms for a 100-color palette.
-- **TypeScript Fallback**: <100ms for a 100-color palette.
-### Determinism Verification
-The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes.
-To verify:
-1.  Generate a palette with a specific seed (e.g., 12345).
-2.  Note the output colors.
-3.  Temporarily disable WASM by renaming `public/assets/color_journey.wasm`.
-4.  Refresh the page. The app will use the TS fallback and produce the exact same palette.
 ## Deployment
 Deploy to Cloudflare Workers for an edge-hosted playground and API.
 1.  Build the WASM module:
@@ -92,7 +78,50 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
     bunx wrangler deploy
     ```
     Wrangler automatically bundles all static assets from the output directory (including the `.js` and `.wasm` files) and the Worker script.
-4.  **Post-deploy**: Verify the API is live by sending a POST request to `https://<YOUR_WORKER_URL>/api/color-journey`. It should return `{ "success": true, "data": {...} }`.
+## Performance Benchmarks
+- **WASM**: <50ms for a 100-color palette.
+- **TypeScript Fallback**: <100ms for a 100-color palette.
+## Troubleshooting
+- **Radix UI Ref Warnings**: These warnings are generally benign and relate to internal ref forwarding within `shadcn/ui` primitives. They do not affect functionality. Ensure your dependencies are up to date.
+- **WASM Load Failures**: If WASM fails to load, the app seamlessly uses the TypeScript fallback with identical outputs. To enable the high-performance WASM module, run `./src/wasm/build-wasm.sh` and refresh the page. In your browser's developer tools Network tab, verify that `color_journey.js` and `color_journey.wasm` are successfully fetched from `/assets/`.
+## Determinism Verification
+The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes.
+To verify:
+1.  Generate a palette with a specific seed (e.g., 12345).
+2.  Note the output colors.
+3.  Temporarily disable WASM by renaming `public/assets/color_journey.wasm`.
+4.  Refresh the page. The app will use the TS fallback and produce the exact same palette.
+## Deployment Checklist
+1.  Run `./src/wasm/build-wasm.sh` to compile the C core.
+2.  Run `bun build` to build the frontend application.
+3.  Run `wrangler deploy` to deploy to Cloudflare Workers.
+4.  Test the live deployment by sending a POST request to `/api/color-journey` with a sample configuration. Expect a `{ "success": true, "data": {...} }` response.
+## API Response Schema
+```json
+{
+  "success": true,
+  "data": {
+    "palette": [
+      {
+        "hex": "#rrggbb",
+        "ok": { "l": 0.5, "a": 0.1, "b": 0.05 }
+      }
+    ],
+    "config": {
+      "anchors": ["#F38020"],
+      "numColors": 12,
+      "loop": "open",
+      "dynamics": { "...": "..." },
+      "variation": { "mode": "off", "seed": 12345 }
+    },
+    "diagnostics": {
+      "minDeltaE": 0.05,
+      "enforcementIters": 2,
+      "traversalStrategy": "perceptual"
+    }
+  }
+}
+```
 [cloudflarebutton]
 ---
 **Copyright © 2025 Peter Nicholls.** This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.

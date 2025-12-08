@@ -83,7 +83,7 @@ export function HomePage() {
       <Header />
       <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-8 md:py-10 lg:py-12">
+          <div className="py-8 md:py-12 lg:py-16">
             <div className="text-center mb-12">
               <motion.h2
                 initial={{ y: 20, opacity: 0 }}
@@ -91,12 +91,13 @@ export function HomePage() {
                 transition={{ duration: 0.6, ease: 'easeOut' }}
                 className="text-4xl md:text-5xl font-display font-bold text-balance leading-tight"
               >
-                <span
-                  className="bg-clip-text text-transparent"
-                  style={{ backgroundImage: 'linear-gradient(135deg, #F38020 0%, #667EEA 50%, #14B8A6 100%)' }}
+                <motion.span
+                  className="bg-clip-text text-transparent bg-gradient-primary bg-[length:200%_100%]"
+                  animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+                  transition={{ duration: 4, ease: "easeInOut", repeat: Infinity }}
                 >
                   Color Journey Palette Engine
-                </span>
+                </motion.span>
               </motion.h2>
               <motion.p
                 initial={{ y: 20, opacity: 0 }}
@@ -114,7 +115,7 @@ export function HomePage() {
                 show: {
                   opacity: 1,
                   transition: {
-                    staggerChildren: 0.05,
+                    staggerChildren: 0.1,
                   },
                 },
               }}
