@@ -6,7 +6,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 ## Features
 - **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast, with perceptual guarantees including minimum ΔE enforcement for distinctness and midpoint vibrancy boosts to avoid muddy tones.
 - **High-Performance C Core**: Core logic written in C and compiled to WebAssembly for near-native performance in the browser and on the edge.
-- **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load.
+- **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load, ensuring identical outputs.
 - **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves to create curated, not mechanical, journeys.
 - **Perceptual Dynamics**: High-level controls for lightness bias, chroma multiplier, contrast enforcement (minimum OKLab ΔE), and more.
 - **Perceptual Enforcement**: Iterative ΔE nudges ensure minimum color separation with adaptive reuse for large palettes.
@@ -65,11 +65,18 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 A convenience script is provided to simplify compilation. Run `./src/wasm/build-wasm.sh` after activating the Emscripten SDK. This generates both the `color_journey.js` loader and the `color_journey.wasm` binary.
 ### Troubleshooting WASM
 - **Build Fails**: Ensure the Emscripten SDK is correctly installed and activated in your current shell session (`emcc` command should be available).
-- **Loading Fails in Browser**: Open your browser's developer tools. In the Network tab, check if `color_journey.js` and `color_journey.wasm` are successfully fetched from `/assets/`. A 404 error means the files are not being served correctly by Vite. Ensure they exist in the `public/assets/` directory. The application will automatically use the TypeScript implementation if the WASM module cannot be loaded.
-### Performance Testing
-Open the developer console in your browser. When you adjust parameters, a `wasm-gen` timer will log the time taken to generate the palette. With the WASM module loaded, generating a 100-color palette should consistently take **<50ms**.
-### Determinism
-The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes. You can verify this by running the app, noting a generated palette, then disabling WASM (e.g., by renaming the file) and refreshing to see the TS fallback produce the same result.
+- **Loading Fails in Browser**: If WASM fails to load (you may see a console info message), the app seamlessly uses the TypeScript fallback with identical outputs. To enable the high-performance WASM module, run `./src/wasm/build-wasm.sh` and refresh the page. In your browser's developer tools Network tab, verify that `color_journey.js` and `color_journey.wasm` are successfully fetched from `/assets/`.
+### Performance Benchmarks
+Open the developer console in your browser. When you adjust parameters, a `wasm-gen` timer will log the time taken to generate the palette.
+- **WASM**: <50ms for a 100-color palette.
+- **TypeScript Fallback**: <100ms for a 100-color palette.
+### Determinism Verification
+The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes.
+To verify:
+1.  Generate a palette with a specific seed (e.g., 12345).
+2.  Note the output colors.
+3.  Temporarily disable WASM by renaming `public/assets/color_journey.wasm`.
+4.  Refresh the page. The app will use the TS fallback and produce the exact same palette.
 ## Deployment
 Deploy to Cloudflare Workers for an edge-hosted playground and API.
 1.  Build the WASM module:
@@ -85,6 +92,7 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
     bunx wrangler deploy
     ```
     Wrangler automatically bundles all static assets from the output directory (including the `.js` and `.wasm` files) and the Worker script.
+4.  **Post-deploy**: Verify the API is live by sending a POST request to `https://<YOUR_WORKER_URL>/api/color-journey`. It should return `{ "success": true, "data": {...} }`.
 [cloudflarebutton]
 ---
 **Copyright © 2025 Peter Nicholls.** This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.

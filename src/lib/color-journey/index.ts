@@ -28,7 +28,7 @@ function initWasm() {
             }
             if (!headOk) {
                 // Informative message for developers, then fall back to TS impl without throwing.
-                console.warn('WASM not built—run ./src/wasm/build-wasm.sh');
+                console.info('Using TS engine for compatibility. For performance, run ./src/wasm/build-wasm.sh');
                 wasmApi = null;
                 return;
             }
@@ -46,7 +46,7 @@ function initWasm() {
             };
             console.log("🎨 Color Journey WASM module loaded successfully.");
         } catch (e) {
-            console.warn("⚠️ Color Journey WASM module failed to load. Falling back to TypeScript implementation.", e);
+            console.debug("WASM fallback active. Color Journey WASM module failed to load.", e);
             wasmApi = null;
         } finally {
             isLoadingWasm = false;
@@ -318,4 +318,5 @@ export const ColorJourneyEngine = {
   },
   isWasmReady: () => !!wasmApi,
   isLoadingWasm: () => isLoadingWasm,
+  isWasmFallback: () => !wasmApi,
 };
