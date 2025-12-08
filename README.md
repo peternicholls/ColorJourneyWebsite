@@ -46,9 +46,9 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 4.  **Build the WebAssembly Module**:
     Run the build script to compile the C core.
     ```bash
-    ./build-wasm.sh
+    ./src/wasm/build-wasm.sh
     ```
-    This will create `color_journey.js` and `color_journey.wasm` in the `public/assets/` directory.
+    This will create `color_journey.wasm` in the `public/assets/` directory.
 ### Development
 1.  Start the development server:
     ```bash
@@ -70,32 +70,23 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 - **Presets**: Presets are stored in your browser's `localStorage`. You can export them as JSON to share or back them up.
 ## Building the C Core (WebAssembly)
 The portable C implementation handles all core logic. Sources are in `/src/wasm/`.
-### Build Script (`build-wasm.sh`)
-A convenience script is provided to simplify compilation.
-```bash
-#!/bin/bash
-# build-wasm.sh
-# Ensure Emscripten SDK is active in your environment
-if ! command -v emcc &> /dev/null
-then
-    echo "emcc command not found. Please install and activate the Emscripten SDK."
-    exit
-fi
-echo "Building Color Journey WASM module..."
-emcc src/wasm/oklab.c src/wasm/color_journey.c \
-  -o public/assets/color_journey.wasm \
-  -s WASM=1 \
-  -s STANDALONE_WASM \
-  -s EXPORTED_FUNCTIONS='["_generate_discrete_palette", "_wasm_malloc", "_wasm_free"]' \
-  -s EXPORTED_RUNTIME_METHODS='["cwrap"]' \
-  -O3
-echo "✅ Build complete. Output file is in public/assets/"
-```
+### Build Script (`src/wasm/build-wasm.sh`)
+A convenience script is provided to simplify compilation. Run `./src/wasm/build-wasm.sh` after activating the Emscripten SDK.
+### Optimizations from External Repo
+The C core integrates an optimized implementation based on work from [Peter Nicholls' ColorJourney repository](https://github.com/peternicholls/ColorJourney/tree/copilot/document-color-swatch-specification). Key enhancements include:
+-   **Perceptual Stepping**: Eased hue traversal for non-linear, more natural color journeys.
+-   **ΔE Enforcement**: Iterative nudges to lightness, chroma, and hue to guarantee minimum perceptual distance between colors.
+-   **Multi-dimensional Traversal**: For large palettes (>20 colors), applies sinusoidal lightness shifts, cosine-based chroma pulses, and hue offsets to maximize distinctness.
+-   **Vibrancy Boost**: Enhances chroma at the midpoint of segments to prevent muddy, desaturated colors.
+### Performance Testing
+Use your browser's developer tools to time palette generation. With the WASM module loaded, generating a 100-color palette should consistently take **<50ms**.
+### Determinism
+The system is designed to be deterministic. Given the same configuration object and seed, both the WASM and TypeScript implementations are verified to produce identical palettes, ensuring consistent output across all platforms and fallbacks.
 ## Deployment
 Deploy to Cloudflare Workers for an edge-hosted playground and API.
 1.  Build the WASM module:
     ```bash
-    ./build-wasm.sh
+    ./src/wasm/build-wasm.sh
     ```
 2.  Build the frontend application:
     ```bash

@@ -33,6 +33,7 @@ typedef struct {
 typedef struct {
     oklab ok;
     srgb_u8 rgb;
+    int enforcement_iters;
 } CJ_ColorPoint;
 // --- Helper Functions ---
 static uint32_t rng_state;
@@ -43,14 +44,6 @@ uint32_t xorshift32() {
     return rng_state = x;
 }
 double random_double() { return (double)xorshift32() / UINT32_MAX; }
-double get_easing(const char* style, double t, double p1, double p2) {
-    if (strcmp(style, "ease-in") == 0) return cubic_bezier(t, 0.42, 0);
-    if (strcmp(style, "ease-out") == 0) return cubic_bezier(t, 0, 0.58);
-    if (strcmp(style, "sinusoidal") == 0) return 0.5 - 0.5 * cos(t * M_PI);
-    if (strcmp(style, "stepped") == 0) return floor(t * 5) / 4.0;
-    if (strcmp(style, "custom") == 0) return cubic_bezier(t, p1, p2);
-    return t; // linear
-}
 // --- Core API ---
 EXPORT
 CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
@@ -59,6 +52,7 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
     if (!palette) return NULL;
     seed_rng(config->seed);
     for (int i = 0; i < config->num_colors; ++i) {
+        palette[i].enforcement_iters = 0;
         double t = (config->loop_mode == 1) ? ((double)i / config->num_colors) : ((config->num_colors > 1) ? (double)i / (config->num_colors - 1) : 0.5);
         if (config->loop_mode == 2) { t *= 2.0; if (t > 1.0) t = 2.0 - t; }
         oklab current_ok;
@@ -98,7 +92,6 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
         }
         palette[i].ok = current_ok;
     }
-    // Multi-dimensional traversal
     if (config->num_colors > 20) {
         for (int i = 0; i < config->num_colors; i++) {
             double alt_l = sin(i * M_PI / 10.0) * 0.05;
@@ -112,7 +105,6 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
             palette[i].ok.b = sin(hue_i + hue_offset) * new_chroma;
         }
     }
-    // Contrast Enforcement
     double min_contrast = fmax(config->contrast * 0.1, 0.01);
     for (int iter = 0; iter < 5; ++iter) {
         int adjusted = 0;
@@ -120,6 +112,7 @@ CJ_ColorPoint* generate_discrete_palette(CJ_Config* config, oklab* anchors) {
             double dE = delta_e_ok(palette[i-1].ok, palette[i].ok);
             if (dE < min_contrast) {
                 adjusted = 1;
+                palette[i].enforcement_iters++;
                 double nudge = (min_contrast - dE) * 0.1;
                 palette[i].ok.l = fmax(0.0, fmin(1.0, palette[i].ok.l + nudge));
                 dE = delta_e_ok(palette[i-1].ok, palette[i].ok);
