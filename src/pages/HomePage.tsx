@@ -38,7 +38,17 @@ const initialConfig: ColorJourneyConfig = {
   },
 };
 export function HomePage() {
-  const [config, setConfig] = useState<ColorJourneyConfig>(initialConfig);
+  const [config, setConfig] = useState<ColorJourneyConfig>(() => {
+    try {
+      const savedUi = localStorage.getItem('cj-ui-prefs');
+      if (savedUi) {
+        return { ...initialConfig, ui: JSON.parse(savedUi) };
+      }
+    } catch (e) {
+      console.warn('Could not parse UI preferences from localStorage', e);
+    }
+    return initialConfig;
+  });
   const [result, setResult] = useState<GenerateResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingWasm, setIsLoadingWasm] = useState(true);
@@ -51,9 +61,8 @@ export function HomePage() {
       if (!engineLoading) {
         clearInterval(wasmCheckInterval);
       } else if (Date.now() - startTime > 5000) {
-        // If still loading after 5s, assume fallback
         setIsLoadingWasm(false);
-        toast.warning('Using TypeScript engine for optimal compatibility.');
+        toast.info('Using TypeScript engine for compatibility.');
         clearInterval(wasmCheckInterval);
       }
     };
@@ -70,7 +79,7 @@ export function HomePage() {
         setResult(res);
       } catch (e) {
         console.error('Palette generation failed:', e);
-        toast.error('Failed to generate palette. Using fallback.');
+        toast.error('Failed to generate palette. Please check console.');
         setResult(null);
       } finally {
         setIsLoading(false);
@@ -78,6 +87,12 @@ export function HomePage() {
     };
     generate();
   }, [debouncedConfig, isLoadingWasm]);
+  const handleConfigChange = (newConfig: ColorJourneyConfig) => {
+    setConfig(newConfig);
+    if (newConfig.ui) {
+      localStorage.setItem('cj-ui-prefs', JSON.stringify(newConfig.ui));
+    }
+  };
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Header />
@@ -92,38 +107,42 @@ export function HomePage() {
                 Generate designer-grade, perceptually-aware color sequences with fine-tuned controls, guaranteed contrast, and optional organic variation.
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
-              <div className="md:col-span-1">
-                <ColorJourneyControls config={config} onConfigChange={setConfig} isLoadingWasm={isLoadingWasm} />
-              </div>
-              <div className="md:col-span-2">
+            <motion.div
+              className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: { transition: { staggerChildren: 0.1 } },
+                hidden: {},
+              }}
+            >
+              <motion.div variants={{ hidden: { opacity: 0, x: -20 }, visible: { opacity: 1, x: 0 } }} className="md:col-span-1">
+                <ColorJourneyControls config={config} onConfigChange={handleConfigChange} isLoadingWasm={isLoadingWasm} />
+              </motion.div>
+              <motion.div variants={{ hidden: { opacity: 0, x: 20 }, visible: { opacity: 1, x: 0 } }} className="md:col-span-2">
                 {isLoadingWasm ? (
-                  <div className="space-y-4">
-                    <Card>
-                      <CardContent className="p-8">
-                        <div className="flex flex-col items-center gap-4">
-                          <Skeleton className="w-64 h-4" />
-                          <Skeleton className="w-full h-32 rounded-lg" />
-                          <p className="text-sm text-muted-foreground">Optimizing color engine for production...</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  <Card>
+                    <CardContent className="p-8 center-col gap-4">
+                      <Skeleton className="w-full h-40 rounded-lg" />
+                      <p className="text-sm text-muted-foreground animate-pulse">Optimizing color engine...</p>
+                    </CardContent>
+                  </Card>
                 ) : (
                   <PaletteViewer
                     result={result}
                     isLoading={isLoading}
-                    isLoadingWasm={isLoadingWasm}
+                    config={config}
+                    onConfigChange={handleConfigChange}
                   />
                 )}
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           </div>
         </div>
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Built with ❤️ at Cloudflare. Based on the OKLab color space matrix conversion by Björn Ottosson (<a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>), with custom optimizations including a fast cube root implementation. Core C engine by Peter Nicholls. Copyright © 2025 Peter Nicholls.</p>
+          <p>Built with ❤️ at Cloudflare. Based on the OKLab color space by Björn Ottosson (<a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). Core C engine by Peter Nicholls.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

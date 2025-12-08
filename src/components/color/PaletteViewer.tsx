@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Download, Check, AlertTriangle, Award, Orbit } from 'lucide-react';
+import { Copy, Check, Orbit } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -10,14 +10,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { OKLab3DViewer } from './OKLab3DViewer';
-import { GenerateResult } from '@/types/color-journey';
+import { GenerateResult, ColorJourneyConfig } from '@/types/color-journey';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
-  isLoadingWasm: boolean;
+  config: ColorJourneyConfig;
+  onConfigChange: (newConfig: ColorJourneyConfig) => void;
 }
 const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
   const badgeContent = isAaa ? 'AAA' : ratio >= 4.5 ? 'AA' : ratio >= 3 ? 'AA Large' : 'Fail';
@@ -33,6 +34,7 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
           <span tabIndex={0}>
             <Badge
               className={cn(
+                'transition-all',
                 isAaa
                   ? 'bg-green-600 hover:bg-green-700 shadow-glow'
                   : ratio >= 4.5
@@ -46,43 +48,29 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
             </Badge>
           </span>
         </TooltipTrigger>
-        <TooltipContent>
-          <p>{tooltipContent}</p>
-        </TooltipContent>
+        <TooltipContent><p>{tooltipContent}</p></TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 };
-export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewerProps) {
-  const [show3D, setShow3D] = useState(false);
+export function PaletteViewer({ result, isLoading, config, onConfigChange }: PaletteViewerProps) {
+  const [copiedStates, setCopiedStates] = React.useState<{ [key: string]: boolean }>({});
   const handleCopy = (content: string, type: string) => {
     copyToClipboard(content).then((success) => {
-      if (success) toast.success(`${type} copied to clipboard!`);
-      else toast.error(`Failed to copy ${type}.`);
+      if (success) {
+        toast.success(`${type} copied to clipboard!`);
+        setCopiedStates({ [type]: true });
+        setTimeout(() => setCopiedStates(s => ({ ...s, [type]: false })), 2000);
+      } else {
+        toast.error(`Failed to copy ${type}.`);
+      }
     });
   };
   const gradientCss = result?.palette
     ? `linear-gradient(to right, ${result.palette.map(p => p.hex).join(', ')})`
     : 'linear-gradient(to right, #eee, #ddd)';
   const diagnostics = result?.diagnostics;
-  if (isLoadingWasm) {
-    return (
-      <div className="space-y-8">
-        <Card>
-          <CardHeader>
-            <CardTitle>Journey Preview</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center gap-4 p-8">
-            <Skeleton className="w-full aspect-video rounded-lg" />
-            <div className="flex items-center gap-2 animate-pulse">
-              <Orbit className="h-5 w-5 text-muted-foreground animate-spin" />
-              <p className="text-sm text-muted-foreground">Loading Color Engine...</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const show3D = config.ui?.show3D || false;
   return (
     <div className="space-y-8">
       <Card>
@@ -93,23 +81,27 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
           </div>
           <div className="flex items-center space-x-2">
             <Label htmlFor="3d-mode">3D View</Label>
-            <Switch id="3d-mode" checked={show3D} onCheckedChange={setShow3D} />
+            <Switch id="3d-mode" checked={show3D} onCheckedChange={(checked) => onConfigChange({ ...config, ui: { ...config.ui, show3D: checked } })} aria-label="Toggle 3D View" />
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <Skeleton className="w-full aspect-video rounded-lg" />
-          ) : show3D && result?.palette ? (
-            <OKLab3DViewer palette={result.palette} />
-          ) : (
+          <AnimatePresence mode="wait">
             <motion.div
+              key={show3D ? '3d' : 'gradient'}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.5 }}
-              className="w-full aspect-video rounded-lg"
-              style={{ background: gradientCss }}
-            />
-          )}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {isLoading ? (
+                <Skeleton className="w-full aspect-video rounded-lg" />
+              ) : show3D && result?.palette ? (
+                <OKLab3DViewer palette={result.palette} />
+              ) : (
+                <div className="w-full aspect-video rounded-lg" style={{ background: gradientCss }} />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </CardContent>
       </Card>
       <Card>
@@ -120,10 +112,7 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
         <CardContent>
           <motion.div
             className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-10 2xl:grid-cols-12 gap-4"
-            variants={{
-              visible: { transition: { staggerChildren: 0.02 } },
-              hidden: {},
-            }}
+            variants={{ visible: { transition: { staggerChildren: 0.02 } }, hidden: {} }}
             initial="hidden"
             animate="visible"
           >
@@ -135,12 +124,9 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <motion.div
-                      variants={{
-                        hidden: { opacity: 0, scale: 0.8 },
-                        visible: { opacity: 1, scale: 1 },
-                      }}
+                      variants={{ hidden: { opacity: 0, scale: 0.8 }, visible: { opacity: 1, scale: 1 } }}
                       whileHover={{ scale: 1.05, y: -4, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }}
-                      className="w-full aspect-square rounded-md cursor-pointer hover:shadow-glow"
+                      className="w-full aspect-square rounded-md cursor-pointer"
                       style={{ backgroundColor: color.hex }}
                       onClick={() => handleCopy(color.hex, 'Hex code')}
                     />
@@ -171,48 +157,18 @@ export function PaletteViewer({ result, isLoading, isLoadingWasm }: PaletteViewe
               </TableRow>
             </TableHeader>
             <TableBody>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
-                <TableCell>Min. Perceptual Distance (ΔE)</TableCell>
-                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : (diagnostics?.minDeltaE != null ? diagnostics.minDeltaE.toFixed(3) : 'N/A')}</TableCell>
-              </motion.tr>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-                <TableCell>Min. WCAG Ratio (vs black/white)</TableCell>
-                <TableCell className="text-right font-mono flex items-center justify-end gap-2">
-                  {isLoading ? <Skeleton className="h-5 w-16" /> : (diagnostics?.wcagMinRatio != null ? diagnostics.wcagMinRatio.toFixed(2) : 'N/A')}
-                  {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} isAaa={diagnostics.aaaCompliant} />}
-                </TableCell>
-              </motion.tr>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
-                <TableCell>Traversal Strategy</TableCell>
-                <TableCell className="text-right">
-                  {isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Badge variant={diagnostics?.traversalStrategy === 'multi-dim' ? 'secondary' : 'default'}>
-                            {diagnostics?.traversalStrategy || 'perceptual'}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{diagnostics?.traversalStrategy === 'multi-dim' ? 'Used alternation & pulses for large palette distinctness.' : 'Standard perceptual interpolation.'}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </TableCell>
-              </motion.tr>
-              <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-                <TableCell>Enforcement Iterations</TableCell>
-                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.enforcementIters ?? '0'}</TableCell>
-              </motion.tr>
+              <TableRow><TableCell>Min. Perceptual Distance (ΔE)</TableCell><TableCell className="text-right font-mono sm:text-sm">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : (diagnostics?.minDeltaE != null ? diagnostics.minDeltaE.toFixed(3) : 'N/A')}</TableCell></TableRow>
+              <TableRow><TableCell>Min. WCAG Ratio (vs black/white)</TableCell><TableCell className="text-right font-mono sm:text-sm flex items-center justify-end gap-2">{isLoading ? <Skeleton className="h-5 w-16" /> : (diagnostics?.wcagMinRatio != null ? diagnostics.wcagMinRatio.toFixed(2) : 'N/A')} {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} isAaa={diagnostics.aaaCompliant} />}</TableCell></TableRow>
+              <TableRow><TableCell>Traversal Strategy</TableCell><TableCell className="text-right">{isLoading ? <Skeleton className="h-5 w-24 ml-auto" /> : (<TooltipProvider><Tooltip><TooltipTrigger><Badge variant={diagnostics?.traversalStrategy === 'multi-dim' ? 'secondary' : 'default'}>{diagnostics?.traversalStrategy || 'perceptual'}</Badge></TooltipTrigger><TooltipContent><p>{diagnostics?.traversalStrategy === 'multi-dim' ? 'Used alternation & pulses for large palette distinctness.' : 'Standard perceptual interpolation.'}</p></TooltipContent></Tooltip></TooltipProvider>)}</TableCell></TableRow>
+              <TableRow><TableCell>Enforcement Iterations</TableCell><TableCell className="text-right font-mono sm:text-sm">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.enforcementIters ?? '0'}</TableCell></TableRow>
             </TableBody>
           </Table>
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            <Button className="w-full" variant="outline" disabled={isLoading || !result} onClick={() => handleCopy(exportToCssVariables(result!.palette), 'CSS Variables')}>
-              <Copy className="mr-2 h-4 w-4" /> Copy CSS Variables
+            <Button className="w-full" variant="outline" disabled={isLoading || !result} onClick={() => handleCopy(exportToCssVariables(result!.palette), 'CSS')}>
+              {copiedStates['CSS'] ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />} Copy CSS Variables
             </Button>
             <Button className="w-full" variant="outline" disabled={isLoading || !result} onClick={() => handleCopy(exportToJson(result!), 'JSON')}>
-              <Download className="mr-2 h-4 w-4" /> Copy JSON
+              {copiedStates['JSON'] ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />} Copy JSON
             </Button>
           </div>
         </CardContent>

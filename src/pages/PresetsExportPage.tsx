@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Toaster, toast } from 'sonner';
 import { ColorJourneyConfig } from '@/types/color-journey';
-import { exportToJson, copyToClipboard, downloadFile } from '@/lib/utils/color-export';
+import { exportToJson, copyToClipboard, downloadFile, ColorJourneyConfigSchema } from '@/lib/utils/color-export';
 import { ColorJourneyEngine } from '@/lib/color-journey';
 import { Header } from '@/components/layout/Header';
 const BUILT_IN_PRESETS: { name: string; config: ColorJourneyConfig }[] = [
@@ -30,7 +30,7 @@ const BUILT_IN_PRESETS: { name: string; config: ColorJourneyConfig }[] = [
   },
   {
     name: "Organic Loop",
-    config: { anchors: ['#F38020'], numColors: 12, loop: 'closed', granularity: 'discrete', dynamics: {lightness: 0.1, chroma: 1.0, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'sinusoidal', curveDimensions: ['all'], curveStrength: 0.8}, variation: {mode: 'subtle', seed: 42} }
+    config: { anchors: ['#F38020'], numColors: 12, loop: 'closed', granularity: 'discrete', dynamics: {lightness: 0.1, chroma: 1.0, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'sinusoidal', curveDimensions: ['all'], curveStrength: 0.8, enableColorCircle: true, arcLength: 360}, variation: {mode: 'subtle', seed: 42} }
   },
   {
     name: "Night Mode Deep",
@@ -46,17 +46,14 @@ export function PresetsExportPage() {
   useEffect(() => {
     try {
       const storedPresets = localStorage.getItem(PRESETS_STORAGE_KEY);
-      if (storedPresets) {
-        setCustomPresets(JSON.parse(storedPresets));
-      }
+      if (storedPresets) setCustomPresets(JSON.parse(storedPresets));
     } catch (error) {
       console.error("Failed to load presets from localStorage", error);
       toast.error("Could not load custom presets.");
     }
     const checkWasmLoading = () => {
-      const engineLoading = ColorJourneyEngine.isLoadingWasm();
-      setIsLoadingWasm(engineLoading);
-      if (!engineLoading) {
+      if (!ColorJourneyEngine.isLoadingWasm()) {
+        setIsLoadingWasm(false);
         clearInterval(wasmCheckInterval);
       }
     };
@@ -74,7 +71,8 @@ export function PresetsExportPage() {
       return;
     }
     try {
-      const config = JSON.parse(editingPreset);
+      const parsedJson = JSON.parse(editingPreset);
+      const config = ColorJourneyConfigSchema.parse(parsedJson.config || parsedJson);
       const newPresets = [...customPresets, { name: presetName, config }];
       setCustomPresets(newPresets);
       localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(newPresets));
@@ -82,7 +80,8 @@ export function PresetsExportPage() {
       setPresetName('');
       setEditingPreset('');
     } catch (error) {
-      toast.error("Invalid JSON configuration.");
+      console.error("Preset save error:", error);
+      toast.error("Invalid JSON configuration. Please provide a valid ColorJourneyConfig object.");
     }
   };
   const deletePreset = (index: number) => {
@@ -92,16 +91,14 @@ export function PresetsExportPage() {
     toast.success("Preset deleted.");
   };
   const handleCopy = (preset: { name: string; config: ColorJourneyConfig }) => {
-    const mockDiagnostics = { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: preset.config.dynamics.contrast > 0.08 ? 7.1 : 4.5, wcagViolations: 0, aaaCompliant: preset.config.dynamics.contrast > 0.08 };
-    const content = exportToJson({ config: preset.config, palette: [], diagnostics: mockDiagnostics });
+    const content = exportToJson({ config: preset.config, palette: [], diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: 0, wcagViolations: 0 } });
     copyToClipboard(content).then(success => {
       if (success) toast.success(`JSON for "${preset.name}" copied!`);
       else toast.error(`Failed to copy.`);
     });
   };
   const handleDownload = (preset: { name: string; config: ColorJourneyConfig }) => {
-    const mockDiagnostics = { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: preset.config.dynamics.contrast > 0.08 ? 7.1 : 4.5, wcagViolations: 0, aaaCompliant: preset.config.dynamics.contrast > 0.08 };
-    const content = exportToJson({ config: preset.config, palette: [], diagnostics: mockDiagnostics });
+    const content = exportToJson({ config: preset.config, palette: [], diagnostics: { minDeltaE: 0, maxDeltaE: 0, contrastViolations: 0, wcagMinRatio: 0, wcagViolations: 0 } });
     downloadFile(content, `${preset.name.replace(/\s+/g, '-')}.json`, 'application/json');
     toast.success(`Downloaded ${preset.name}.json`);
   };
@@ -128,7 +125,7 @@ export function PresetsExportPage() {
                     <h3 className="text-sm font-semibold text-muted-foreground mb-2">Built-in Presets</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-3 gap-4">
                       {BUILT_IN_PRESETS.map((preset) => (
-                        <motion.div key={preset.name} whileHover={{ scale: 1.02, rotate: 1 }} transition={{ type: "spring", stiffness: 300, damping: 10 }}>
+                        <motion.div key={preset.name} whileHover={{ scale: 1.02, y: -2, boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)" }} transition={{ type: "spring", stiffness: 300, damping: 15 }}>
                           <Card className="overflow-hidden">
                             <div className="h-16" style={{ background: `linear-gradient(to right, ${preset.config.anchors.join(', ')})` }} />
                             <CardHeader className="p-4">
@@ -190,7 +187,7 @@ export function PresetsExportPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright �� 2025 Peter Nicholls. Based on the OKLab color space matrix conversion by Björn Ottosson (<a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>), with custom optimizations including a fast cube root implementation. Core C engine by Peter Nicholls. This project is licensed under the MIT License.</p>
+          <p>Built with ❤️ at Cloudflare. Based on the OKLab color space by Björn Ottosson (<a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). Core C engine by Peter Nicholls.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />
