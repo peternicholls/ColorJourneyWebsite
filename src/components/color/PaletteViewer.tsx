@@ -1,23 +1,21 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Copy, Download, Check, AlertTriangle, Award, Orbit } from 'lucide-react';
+import { Copy, Download, Check, AlertTriangle, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+
+
 import { GenerateResult } from '@/types/color-journey';
 import { exportToCssVariables, exportToJson, copyToClipboard } from '@/lib/utils/color-export';
 import { toast } from 'sonner';
-import { OKLab3DViewer } from './OKLab3DViewer';
+
 interface PaletteViewerProps {
   result: GenerateResult | null;
   isLoading: boolean;
-  show3D: boolean;
-  onToggle3D: (show: boolean) => void;
 }
 const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
   const badgeContent = isAaa ? 'AAA' : ratio >= 4.5 ? 'AA' : ratio >= 3 ? 'AA Large' : 'Fail';
@@ -53,7 +51,7 @@ const WcagBadge = ({ ratio, isAaa }: { ratio: number; isAaa?: boolean }) => {
     </TooltipProvider>
   );
 };
-export function PaletteViewer({ result, isLoading, show3D, onToggle3D }: PaletteViewerProps) {
+export function PaletteViewer({ result, isLoading }: PaletteViewerProps) {
   const handleCopy = (content: string, type: string) => {
     copyToClipboard(content).then((success) => {
       if (success) toast.success(`${type} copied to clipboard!`);
@@ -72,25 +70,11 @@ export function PaletteViewer({ result, isLoading, show3D, onToggle3D }: Palette
             <CardTitle>Journey Preview</CardTitle>
             <CardDescription>Visualize the entire color journey.</CardDescription>
           </div>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex items-center space-x-2">
-                  <Switch id="3d-view" checked={show3D} onCheckedChange={onToggle3D} className="transition-transform data-[state=checked]:hover:scale-105" />
-                  <Label htmlFor="3d-view"><Orbit className="h-5 w-5" /></Label>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Toggle 3D OKLab View</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="w-full aspect-video rounded-lg" />
-          ) : show3D ? (
-            <OKLab3DViewer palette={result?.palette || []} />
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
@@ -154,12 +138,12 @@ export function PaletteViewer({ result, isLoading, show3D, onToggle3D }: Palette
             <TableBody>
               <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
                 <TableCell>Min. Perceptual Distance (ΔE)</TableCell>
-                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : diagnostics?.minDeltaE.toFixed(3) ?? 'N/A'}</TableCell>
+                <TableCell className="text-right font-mono">{isLoading ? <Skeleton className="h-5 w-16 ml-auto" /> : (diagnostics?.minDeltaE != null ? diagnostics.minDeltaE.toFixed(3) : 'N/A')}</TableCell>
               </motion.tr>
               <motion.tr initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.15 }}>
                 <TableCell>Min. WCAG Ratio (vs black/white)</TableCell>
                 <TableCell className="text-right font-mono flex items-center justify-end gap-2">
-                  {isLoading ? <Skeleton className="h-5 w-16" /> : diagnostics?.wcagMinRatio.toFixed(2) ?? 'N/A'}
+                  {isLoading ? <Skeleton className="h-5 w-16" /> : (diagnostics?.wcagMinRatio != null ? diagnostics.wcagMinRatio.toFixed(2) : 'N/A')}
                   {!isLoading && diagnostics && <WcagBadge ratio={diagnostics.wcagMinRatio} isAaa={diagnostics.aaaCompliant} />}
                 </TableCell>
               </motion.tr>

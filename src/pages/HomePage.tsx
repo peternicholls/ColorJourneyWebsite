@@ -59,12 +59,7 @@ export function HomePage() {
       setIsLoading(false);
     });
   }, [debouncedConfig]);
-  const handleToggle3D = useCallback((show: boolean) => {
-    setConfig(prevConfig => ({
-      ...prevConfig,
-      ui: { ...prevConfig.ui, show3D: show },
-    }));
-  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Header />
@@ -109,8 +104,6 @@ export function HomePage() {
                 <PaletteViewer
                   result={result}
                   isLoading={isLoading || isLoadingWasm}
-                  show3D={config.ui?.show3D || false}
-                  onToggle3D={handleToggle3D}
                 />
               </motion.div>
             </div>
