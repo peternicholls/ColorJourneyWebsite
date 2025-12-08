@@ -10,7 +10,12 @@ export function Header() {
       isActive ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
     }`;
   return (
-    <header className="border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+    <motion.header
+      initial={{ y: -20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      className="border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-4">
@@ -20,8 +25,11 @@ export function Header() {
               </div>
               <div>
                 <h1 className="text-lg font-display font-bold leading-tight">
-                  Color Journey
+                  Color Journey Palette Engine
                 </h1>
+                <p className="text-xs text-muted-foreground hidden sm:block">
+                  using the OKLab color space, based on Björn Ottosson's work (MIT License)
+                </p>
               </div>
             </Link>
           </div>
@@ -40,6 +48,6 @@ export function Header() {
           </div>
         </div>
       </div>
-    </header>
+    </motion.header>
   );
 }

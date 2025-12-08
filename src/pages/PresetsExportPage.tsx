@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Save, Upload, Trash2, Download, Copy, Palette, Github } from 'lucide-react';
+import { Save, Trash2, Download, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Toaster, toast } from 'sonner';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { ColorJourneyConfig } from '@/types/color-journey';
 import { exportToJson, copyToClipboard, downloadFile } from '@/lib/utils/color-export';
 import { ColorJourneyEngine } from '@/lib/color-journey';
+import { Header } from '@/components/layout/Header';
 const BUILT_IN_PRESETS: { name: string; config: ColorJourneyConfig }[] = [
   {
     name: "Vivid Sunset",
@@ -95,105 +94,93 @@ export function PresetsExportPage() {
     toast.success(`Downloaded ${preset.name}.json`);
   };
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b sticky top-0 bg-background/95 backdrop-blur-sm z-10">
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <Header />
+      <main className="flex-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <Link to="/" className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F38020] to-[#E55A1B] flex items-center justify-center shadow-primary">
-                  <Palette className="w-5 h-5 text-white" />
-                </div>
-                <h1 className="text-xl font-display font-bold">Color Journey</h1>
-              </Link>
+          <div className="py-8 md:py-10 lg:py-12">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">Presets & Export</h2>
+              <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
+                Save, share, and export your favorite color journey configurations to use in any project.
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="icon" asChild>
-                <a href="https://github.com/cloudflare/workers-ai-apis" target="_blank" rel="noopener noreferrer"><Github className="h-5 w-5" /></a>
-              </Button>
-              <ThemeToggle className="relative top-0 right-0" />
-            </div>
-          </div>
-        </div>
-      </header>
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="py-8 md:py-10 lg:py-12">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">Presets & Export</h2>
-            <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
-              Save, share, and export your favorite color journey configurations.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Preset Library</CardTitle>
-                <CardDescription>Load a built-in preset or one of your own.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">Built-in Presets</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {BUILT_IN_PRESETS.map((preset) => (
-                      <motion.div key={preset.name} whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
-                        <Card className="overflow-hidden">
-                          <div className="h-16" style={{ background: `linear-gradient(to right, ${preset.config.anchors.join(', ')})` }} />
-                          <CardHeader className="p-4">
-                            <CardTitle className="text-base">{preset.name}</CardTitle>
-                          </CardHeader>
-                          <CardContent className="p-4 pt-0 flex gap-2">
-                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleCopy(preset)}>
-                              <Copy className="mr-2 h-4 w-4" /> JSON
-                            </Button>
-                            <Button size="sm" variant="outline" className="w-full" onClick={() => handleDownload(preset)}>
-                              <Download className="mr-2 h-4 w-4" /> Export
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">My Presets</h3>
-                  {customPresets.length > 0 ? (
-                    <div className="space-y-2">
-                      {customPresets.map((preset, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 border rounded-lg">
-                          <div className="flex-1 font-medium">{preset.name}</div>
-                          <Button size="sm" variant="ghost" onClick={() => handleCopy(preset)}><Copy className="h-4 w-4" /></Button>
-                          <Button size="sm" variant="ghost" onClick={() => deletePreset(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preset Library</CardTitle>
+                  <CardDescription>Load a built-in preset or one of your own.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-2">Built-in Presets</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {BUILT_IN_PRESETS.map((preset) => (
+                        <motion.div key={preset.name} whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
+                          <Card className="overflow-hidden">
+                            <div className="h-16" style={{ background: `linear-gradient(to right, ${preset.config.anchors.join(', ')})` }} />
+                            <CardHeader className="p-4">
+                              <CardTitle className="text-base">{preset.name}</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0 flex gap-2">
+                              <Button size="sm" variant="outline" className="w-full" onClick={() => handleCopy(preset)}>
+                                <Copy className="mr-2 h-4 w-4" /> JSON
+                              </Button>
+                              <Button size="sm" variant="outline" className="w-full" onClick={() => handleDownload(preset)}>
+                                <Download className="mr-2 h-4 w-4" /> Export
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">You haven't saved any presets yet.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Create or Import Preset</CardTitle>
-                <CardDescription>Paste a JSON configuration to save it as a new preset.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="preset-name">Preset Name</Label>
-                  <Input id="preset-name" value={presetName} onChange={(e) => setPresetName(e.target.value)} placeholder="e.g., My Awesome Palette" />
-                </div>
-                <div>
-                  <Label htmlFor="preset-config">JSON Configuration</Label>
-                  <Textarea id="preset-config" value={editingPreset} onChange={(e) => setEditingPreset(e.target.value)} rows={10} placeholder='Paste your ColorJourneyConfig JSON here...' />
-                </div>
-                <Button className="w-full" onClick={savePreset} disabled={isLoadingWasm}>
-                  <Save className="mr-2 h-4 w-4" /> Save Preset
-                </Button>
-              </CardContent>
-            </Card>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-muted-foreground mb-2">My Presets</h3>
+                    {customPresets.length > 0 ? (
+                      <div className="space-y-2">
+                        {customPresets.map((preset, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 border rounded-lg">
+                            <div className="flex-1 font-medium">{preset.name}</div>
+                            <Button size="sm" variant="ghost" onClick={() => handleCopy(preset)}><Copy className="h-4 w-4" /></Button>
+                            <Button size="sm" variant="ghost" onClick={() => deletePreset(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">You haven't saved any presets yet.</p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create or Import Preset</CardTitle>
+                  <CardDescription>Paste a JSON configuration to save it as a new preset.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="preset-name">Preset Name</Label>
+                    <Input id="preset-name" value={presetName} onChange={(e) => setPresetName(e.target.value)} placeholder="e.g., My Awesome Palette" />
+                  </div>
+                  <div>
+                    <Label htmlFor="preset-config">JSON Configuration</Label>
+                    <Textarea id="preset-config" value={editingPreset} onChange={(e) => setEditingPreset(e.target.value)} rows={10} placeholder='Paste your ColorJourneyConfig JSON here...' />
+                  </div>
+                  <Button className="w-full" onClick={savePreset} disabled={isLoadingWasm}>
+                    <Save className="mr-2 h-4 w-4" /> Save Preset
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </main>
+      <footer className="border-t">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
+          <p>Copyright © 2025 Peter Nicholls. This project is licensed under the MIT License - see <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">LICENSE</a> file for details.</p>
+        </div>
+      </footer>
       <Toaster richColors closeButton />
     </div>
   );

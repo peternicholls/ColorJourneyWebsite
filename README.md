@@ -1,12 +1,13 @@
-# Color Journey — OKLab Palette Engine
+# Color Journey Palette Engine
+*using the OKLab color space, based on Björn Ottosson's work (MIT License)*
 [![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=${repositoryUrl})
 [cloudflarebutton]
 Color Journey is a portable, OKLab-first color generation engine and interactive playground that produces designer-quality, perceptually-aware color sequences for timelines, tracks, sections, labels, and UI accents. The core algorithms are implemented in portable C (compiled to WASM for web delivery), with a robust TypeScript runtime fallback. It exposes composable configuration for routes, dynamics, granularity, looping, and optional variation, supporting both continuous (t → Color) and discrete (N-step) palette generation. The UI is a polished, shadcn/ui-based playground with controls, live previews, and exports.
 ## Features
-- **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast.
+- **OKLab-Based Color Processing**: Operates in perceptually uniform OKLab space for stable lightness, chroma, and contrast, with perceptual guarantees including minimum ΔE enforcement for distinctness and midpoint vibrancy boosts to avoid muddy tones.
 - **High-Performance C Core**: Core logic written in C and compiled to WebAssembly for near-native performance in the browser and on the edge.
 - **Graceful Fallback**: A complete TypeScript implementation serves as an immediate fallback if WASM fails to load.
-- **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves.
+- **Journey Routes**: Single or multi-anchor (2–5) color paths with designed non-linear pacing and easing curves to create curated, not mechanical, journeys.
 - **Perceptual Dynamics**: High-level controls for lightness bias, chroma multiplier, contrast enforcement (minimum OKLab ΔE), and more.
 - **Perceptual Enforcement**: Iterative ΔE nudges ensure minimum color separation with adaptive reuse for large palettes.
 - **Advanced Dynamics**: Bezier curves for path shaping, preset biases, and midpoint vibrancy boosts.
@@ -29,7 +30,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
 1.  Clone the repository:
     ```bash
     git clone <repository-url>
-    cd color-journey
+    cd color-journey-palette-engine
     ```
 2.  Install dependencies:
     ```bash
@@ -61,8 +62,7 @@ Color Journey is a portable, OKLab-first color generation engine and interactive
     The edge API will be at `http://localhost:8787/api/color-journey`.
 ## Usage Notes
 - **WASM Loading**: The application attempts to load `/assets/color_journey.wasm` on startup. If it's missing or fails, the app gracefully falls back to the TypeScript engine with full functionality. Ensure you run the build script after activating the Emscripten SDK.
-- **WCAG Compliance**: Use the 'aaa-safe' bias preset to generate palettes that are more likely to meet the WCAG AAA contrast ratio of >=7:1. The diagnostics panel will confirm compliance.
-- **API**: `POST /api/color-journey` with a JSON config body. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP. Diagnostics now include WCAG contrast ratios for text/large text compliance.
+- **Programmatic API**: Access programmatically via `POST /api/color-journey` for dynamic, deterministic outputs in your apps, ensuring designer-intent palettes at the edge. The endpoint is cached for 5 minutes and rate-limited to 10 requests/minute per IP.
 - **Pages**: The application is split into three main pages:
     - `/`: The main interactive Playground.
     - `/presets`: A page to save, load, and manage custom presets in `localStorage`.
@@ -91,8 +91,6 @@ emcc src/wasm/oklab.c src/wasm/color_journey.c \
   -O3
 echo "✅ Build complete. Output file is in public/assets/"
 ```
-### Manual Compilation
-You can also run the `emcc` command directly. The `-s STANDALONE_WASM` flag is important to produce a clean `.wasm` file without JS glue code.
 ## Deployment
 Deploy to Cloudflare Workers for an edge-hosted playground and API.
 1.  Build the WASM module:
@@ -107,7 +105,7 @@ Deploy to Cloudflare Workers for an edge-hosted playground and API.
     ```bash
     bunx wrangler deploy
     ```
-    Wrangler automatically bundles all static assets from the output directory (including the `.wasm` file) and the Worker script. Ensure `public/assets` contains the WASM files post-build for optimal performance.
+    Wrangler automatically bundles all static assets from the output directory (including the `.wasm` file) and the Worker script.
 [cloudflarebutton]
 ---
 **Copyright © 2025 Peter Nicholls.** This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
