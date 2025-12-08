@@ -10,7 +10,6 @@ import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
-
 import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig, CurveStyle, CurveDimension } from '@/types/color-journey';
 import { Plus, Trash2, Dices, Orbit } from 'lucide-react';
 import { toast } from 'sonner';
@@ -105,63 +104,26 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
     }
     setBezierErrors(newErrors);
   };
-
-  // Helpers to manage curve dimension checkboxes and "Select All" behavior.
-  const getCurveDims = (): CurveDimension[] => config.dynamics.curveDimensions || [];
-
-  const handleCurveCheckboxChange = (dim: CurveDimension, checked: boolean) => {
-    const current = getCurveDims();
-    let dims: CurveDimension[] = [...current]; // copy for immutability
-
-    if (checked) {
-      if (dim === 'all') {
-        // If 'all' is checked explicitly, represent as ['all'].
-        dims = ['all'] as CurveDimension[];
-      } else {
-        // If 'all' was set, switching to an individual checkbox should expand to individuals first.
-        if (dims.includes('all')) {
-          dims = ['L', 'C', 'H'] as CurveDimension[];
-        }
-        if (!dims.includes(dim)) dims = [...dims, dim];
-      }
-    } else {
-      // Unchecking behavior.
-      if (dim === 'all') {
-        dims = [] as CurveDimension[];
-      } else {
-        // If 'all' was selected, expand to individuals then remove the unchecked one.
-        if (dims.includes('all')) {
-          dims = (['L', 'C', 'H'] as CurveDimension[]).filter(d => d !== dim);
-        } else {
-          dims = dims.filter(d => d !== dim);
-        }
-      }
+  const handleCurveDimensionChange = (dim: CurveDimension, checked: boolean) => {
+    const currentDims = config.dynamics.curveDimensions?.filter(d => d !== 'all') || [];
+    const newDims = checked
+      ? [...currentDims, dim]
+      : currentDims.filter(d => d !== dim);
+    const updates: Partial<DynamicsConfig> = { curveDimensions: newDims };
+    if (newDims.length === 0) {
+      updates.curveStyle = 'linear';
+      updates.curveStrength = 0;
+      toast.info('Curve effect disabled. Traversal is now linear.');
     }
-
-    // If all three individuals are present, normalize to ['all'] to avoid overlap.
-    const individuals: CurveDimension[] = ['L', 'C', 'H'];
-    const hasIndividuals = individuals.every(i => dims.includes(i));
-    if (hasIndividuals && dims.length === 3) {
-      dims = ['all'] as CurveDimension[];
-    }
-
-    // Apply updated dimensions.
-    handleMultipleDynamicsChange({ curveDimensions: dims });
-
-    // If nothing is selected, disable curve effects by setting strength to 0 and warn the user.
-    if (dims.length === 0) {
-      handleMultipleDynamicsChange({ curveStrength: 0 });
-      toast.warning('Select at least one dimension for curve application.');
-    }
+    handleMultipleDynamicsChange(updates);
   };
-
   const handleSelectAllCurve = () => {
-    // Explicit Select All sets the semantic 'all' token and ensure curve strength is enabled.
-    const prev = config.dynamics.curveStrength ?? 1;
-    // If previously explicitly zero, restore default 1; otherwise ensure a minimal non-zero value.
-    const newStrength = prev === 0 ? 1 : Math.max(prev, 0.01);
-    handleMultipleDynamicsChange({ curveDimensions: ['all'] as CurveDimension[], curveStrength: newStrength });
+    handleMultipleDynamicsChange({
+      curveDimensions: ['L', 'C', 'H'],
+      curveStrength: 1,
+    });
   };
+  const curveDimensions = config.dynamics.curveDimensions || [];
   return (
     <Card className="sticky top-8">
       <CardHeader>
@@ -311,72 +273,51 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                           <label className="flex items-center gap-2 min-w-[100px]">
                             <input
                               type="checkbox"
-                              aria-label="Lightness"
-                              checked={(config.dynamics.curveDimensions || []).includes('all') || (config.dynamics.curveDimensions || []).includes('L')}
-                              onChange={(e) => handleCurveCheckboxChange('L', e.target.checked)}
+                              aria-label="Apply curve to Lightness"
+                              checked={curveDimensions.includes('L')}
+                              onChange={(e) => handleCurveDimensionChange('L', e.target.checked)}
                               className="h-4 w-4"
                             />
                             <span className="ml-2">Lightness</span>
                           </label>
                         </TooltipTrigger>
-                        <TooltipContent><p>Controls non-linear pacing of perceived brightness (OKLab L).</p></TooltipContent>
+                        <TooltipContent><p>Non-linear pacing of perceived brightness (OKLab L) for tonal curves.</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <label className="flex items-center gap-2 min-w-[100px]">
                             <input
                               type="checkbox"
-                              aria-label="Chroma"
-                              checked={(config.dynamics.curveDimensions || []).includes('all') || (config.dynamics.curveDimensions || []).includes('C')}
-                              onChange={(e) => handleCurveCheckboxChange('C', e.target.checked)}
+                              aria-label="Apply curve to Chroma"
+                              checked={curveDimensions.includes('C')}
+                              onChange={(e) => handleCurveDimensionChange('C', e.target.checked)}
                               className="h-4 w-4"
                             />
                             <span className="ml-2">Chroma</span>
                           </label>
                         </TooltipTrigger>
-                        <TooltipContent><p>Applies curve to saturation (OKLab chroma) for richer or muted midpoints.</p></TooltipContent>
+                        <TooltipContent><p>Shapes saturation (OKLab chroma) for richer/muted transitions.</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <label className="flex items-center gap-2 min-w-[100px]">
                             <input
                               type="checkbox"
-                              aria-label="Hue"
-                              checked={(config.dynamics.curveDimensions || []).includes('all') || (config.dynamics.curveDimensions || []).includes('H')}
-                              onChange={(e) => handleCurveCheckboxChange('H', e.target.checked)}
+                              aria-label="Apply curve to Hue"
+                              checked={curveDimensions.includes('H')}
+                              onChange={(e) => handleCurveDimensionChange('H', e.target.checked)}
                               className="h-4 w-4"
                             />
                             <span className="ml-2">Hue</span>
                           </label>
                         </TooltipTrigger>
-                        <TooltipContent><p>Shapes hue traversal (a/b plane) for warm/cool emphasis or arcs.</p></TooltipContent>
+                        <TooltipContent><p>Modulates color angle (OKLab a/b) for warm/cool emphasis.</p></TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
-
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <label className="flex items-center gap-2 min-w-[100px]">
-                            <input
-                              type="checkbox"
-                              aria-label="All dimensions"
-                              checked={(config.dynamics.curveDimensions || []).includes('all')}
-                              onChange={(e) => handleCurveCheckboxChange('all', e.target.checked)}
-                              className="h-4 w-4"
-                            />
-                            <span className="ml-2">All</span>
-                          </label>
-                        </TooltipTrigger>
-                        <TooltipContent><p>Apply the traversal curve to Lightness, Chroma and Hue together.</p></TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
                     <Button variant="ghost" size="sm" onClick={handleSelectAllCurve}>Select All</Button>
                   </div>
                 </div>
