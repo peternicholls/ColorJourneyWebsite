@@ -10,7 +10,7 @@ import { Separator } from '@/components/ui/separator';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Switch } from '@/components/ui/switch';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+
 import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig, CurveStyle, CurveDimension } from '@/types/color-journey';
 import { Plus, Trash2, Dices, Orbit } from 'lucide-react';
 import { toast } from 'sonner';
@@ -21,10 +21,10 @@ interface ColorJourneyControlsProps {
   isLoadingWasm: boolean;
 }
 const PRESETS: { [key: string]: Partial<ColorJourneyConfig> } = {
-  "Default": { anchors: ["#F38020", "#667EEA"], numColors: 12, dynamics: { lightness: 0, chroma: 1, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'linear', curveDimensions: ['all'], curveStrength: 1 } },
-  "Pastel Drift": { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6", "#ffaaa5", "#ff8b94"], numColors: 10, dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, curveStyle: 'ease-out', curveDimensions: ['all'], curveStrength: 1 } },
-  "Vivid Sunset": { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, curveStyle: 'ease-in', curveDimensions: ['all'], curveStrength: 1 } },
-  "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, curveStyle: 'sinusoidal', curveDimensions: ['all'], curveStrength: 1 } },
+  "Default": { anchors: ["#F38020", "#667EEA"], numColors: 12, dynamics: { lightness: 0, chroma: 1, contrast: 0.05, vibrancy: 0.5, warmth: 0, curveStyle: 'linear', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
+  "Pastel Drift": { anchors: ["#a8e6cf", "#dcedc1", "#ffd3b6", "#ffaaa5", "#ff8b94"], numColors: 10, dynamics: { lightness: 0.1, chroma: 0.8, contrast: 0.02, vibrancy: 0.3, warmth: 0, curveStyle: 'ease-out', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
+  "Vivid Sunset": { anchors: ["#ff7e5f", "#feb47b"], numColors: 8, dynamics: { lightness: 0, chroma: 1.2, contrast: 0.05, vibrancy: 0.6, warmth: 0.2, curveStyle: 'ease-in', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
+  "Ocean Deep": { anchors: ["#00c9ff", "#92fe9d"], numColors: 12, dynamics: { lightness: -0.1, chroma: 1.1, contrast: 0.04, vibrancy: 0.5, warmth: -0.3, curveStyle: 'sinusoidal', curveDimensions: ['all'] as CurveDimension[], curveStrength: 1 } },
 };
 const BIAS_MAP: { [key in BiasPreset]: Partial<DynamicsConfig> } = {
   neutral: { lightness: 0, chroma: 1.0, warmth: 0 },
@@ -104,6 +104,63 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
       newErrors[curve][index] = false;
     }
     setBezierErrors(newErrors);
+  };
+
+  // Helpers to manage curve dimension checkboxes and "Select All" behavior.
+  const getCurveDims = (): CurveDimension[] => config.dynamics.curveDimensions || [];
+
+  const handleCurveCheckboxChange = (dim: CurveDimension, checked: boolean) => {
+    const current = getCurveDims();
+    let dims: CurveDimension[] = [...current]; // copy for immutability
+
+    if (checked) {
+      if (dim === 'all') {
+        // If 'all' is checked explicitly, represent as ['all'].
+        dims = ['all'] as CurveDimension[];
+      } else {
+        // If 'all' was set, switching to an individual checkbox should expand to individuals first.
+        if (dims.includes('all')) {
+          dims = ['L', 'C', 'H'] as CurveDimension[];
+        }
+        if (!dims.includes(dim)) dims = [...dims, dim];
+      }
+    } else {
+      // Unchecking behavior.
+      if (dim === 'all') {
+        dims = [] as CurveDimension[];
+      } else {
+        // If 'all' was selected, expand to individuals then remove the unchecked one.
+        if (dims.includes('all')) {
+          dims = (['L', 'C', 'H'] as CurveDimension[]).filter(d => d !== dim);
+        } else {
+          dims = dims.filter(d => d !== dim);
+        }
+      }
+    }
+
+    // If all three individuals are present, normalize to ['all'] to avoid overlap.
+    const individuals: CurveDimension[] = ['L', 'C', 'H'];
+    const hasIndividuals = individuals.every(i => dims.includes(i));
+    if (hasIndividuals && dims.length === 3) {
+      dims = ['all'] as CurveDimension[];
+    }
+
+    // Apply updated dimensions.
+    handleMultipleDynamicsChange({ curveDimensions: dims });
+
+    // If nothing is selected, disable curve effects by setting strength to 0 and warn the user.
+    if (dims.length === 0) {
+      handleMultipleDynamicsChange({ curveStrength: 0 });
+      toast.warning('Select at least one dimension for curve application.');
+    }
+  };
+
+  const handleSelectAllCurve = () => {
+    // Explicit Select All sets the semantic 'all' token and ensure curve strength is enabled.
+    const prev = config.dynamics.curveStrength ?? 1;
+    // If previously explicitly zero, restore default 1; otherwise ensure a minimal non-zero value.
+    const newStrength = prev === 0 ? 1 : Math.max(prev, 0.01);
+    handleMultipleDynamicsChange({ curveDimensions: ['all'] as CurveDimension[], curveStrength: newStrength });
   };
   return (
     <Card className="sticky top-8">
@@ -247,18 +304,81 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
                 )}
                 <div className="space-y-2">
                   <Label>Apply To</Label>
-                  <ToggleGroup type="multiple" aria-label="Traversal dimensions" value={config.dynamics.curveDimensions || []} onValueChange={(v: CurveDimension[]) => {
-                    const dims = v.length > 0 ? v : [];
-                    handleDynamicsChange('curveDimensions', dims);
-                    if (dims.length === 0) {
-                      toast.warning('Select at least one dimension for curve application.');
-                    }
-                  }} className="flex flex-row flex-wrap gap-4 justify-start items-center">
-                    <ToggleGroupItem value="L" className="min-w-[100px] justify-center">Lightness</ToggleGroupItem>
-                    <ToggleGroupItem value="C" className="min-w-[100px] justify-center">Chroma</ToggleGroupItem>
-                    <ToggleGroupItem value="H" className="min-w-[100px] justify-center">Hue</ToggleGroupItem>
-                    <ToggleGroupItem value="all" className="min-w-[100px] justify-center">All</ToggleGroupItem>
-                  </ToggleGroup>
+                  <div className="flex flex-row flex-wrap gap-4 justify-start items-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-2 min-w-[100px]">
+                            <input
+                              type="checkbox"
+                              aria-label="Lightness"
+                              checked={(config.dynamics.curveDimensions || []).includes('all') || (config.dynamics.curveDimensions || []).includes('L')}
+                              onChange={(e) => handleCurveCheckboxChange('L', e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <span className="ml-2">Lightness</span>
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Controls non-linear pacing of perceived brightness (OKLab L).</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-2 min-w-[100px]">
+                            <input
+                              type="checkbox"
+                              aria-label="Chroma"
+                              checked={(config.dynamics.curveDimensions || []).includes('all') || (config.dynamics.curveDimensions || []).includes('C')}
+                              onChange={(e) => handleCurveCheckboxChange('C', e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <span className="ml-2">Chroma</span>
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Applies curve to saturation (OKLab chroma) for richer or muted midpoints.</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-2 min-w-[100px]">
+                            <input
+                              type="checkbox"
+                              aria-label="Hue"
+                              checked={(config.dynamics.curveDimensions || []).includes('all') || (config.dynamics.curveDimensions || []).includes('H')}
+                              onChange={(e) => handleCurveCheckboxChange('H', e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <span className="ml-2">Hue</span>
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Shapes hue traversal (a/b plane) for warm/cool emphasis or arcs.</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <label className="flex items-center gap-2 min-w-[100px]">
+                            <input
+                              type="checkbox"
+                              aria-label="All dimensions"
+                              checked={(config.dynamics.curveDimensions || []).includes('all')}
+                              onChange={(e) => handleCurveCheckboxChange('all', e.target.checked)}
+                              className="h-4 w-4"
+                            />
+                            <span className="ml-2">All</span>
+                          </label>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Apply the traversal curve to Lightness, Chroma and Hue together.</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    <Button variant="ghost" size="sm" onClick={handleSelectAllCurve}>Select All</Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Strength ({(config.dynamics.curveStrength || 1).toFixed(2)})</Label>
