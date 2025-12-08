@@ -13,6 +13,8 @@ import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ColorJourneyConfig, LoopMode, VariationMode, BiasPreset, DynamicsConfig, CurveStyle, CurveDimension } from '@/types/color-journey';
 import { Plus, Trash2, Dices, Orbit } from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 interface ColorJourneyControlsProps {
   config: ColorJourneyConfig;
   onConfigChange: (newConfig: ColorJourneyConfig) => void;
@@ -44,6 +46,7 @@ const CURVE_STYLE_MAP: { [key in CurveStyle]: { name: string, description: strin
 };
 export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: ColorJourneyControlsProps) {
   const [selectedPreset, setSelectedPreset] = useState('');
+  const [bezierErrors, setBezierErrors] = useState({ bezierLight: [false, false], bezierChroma: [false, false] });
   const handleValueChange = (key: keyof ColorJourneyConfig, value: any) => {
     onConfigChange({ ...config, [key]: value });
   };
@@ -86,11 +89,21 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
     });
   };
   const handleBezierChange = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string) => {
-    const val = Math.max(0, Math.min(1, parseFloat(value)));
-    if (isNaN(val)) return;
+    const val = parseFloat(value);
     const newCurve = [...(config.dynamics[curve] || [0.5, 0.5])] as [number, number];
     newCurve[index] = val;
     handleDynamicsChange(curve, newCurve);
+  };
+  const validateBezier = (curve: 'bezierLight' | 'bezierChroma', index: number, value: string) => {
+    const val = parseFloat(value);
+    const newErrors = { ...bezierErrors };
+    if (isNaN(val) || val < 0 || val > 1) {
+      newErrors[curve][index] = true;
+      toast.error('Bezier value must be between 0.0 and 1.0.');
+    } else {
+      newErrors[curve][index] = false;
+    }
+    setBezierErrors(newErrors);
   };
   return (
     <Card className="sticky top-8">
@@ -194,49 +207,69 @@ export function ColorJourneyControls({ config, onConfigChange, isLoadingWasm }: 
               </AccordionContent>
             </motion.div>
           </AccordionItem>
-          <AccordionItem value="curves">
-            <AccordionTrigger className="text-sm font-medium">Advanced Curves</AccordionTrigger>
+          <AccordionItem value="journey-traversal">
+            <AccordionTrigger className="text-sm font-medium">Journey Traversal</AccordionTrigger>
             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ duration: 0.3, delay: 0.3 }}>
               <AccordionContent className="space-y-4 pt-2">
                 <div className="space-y-2">
                   <Label>Traversal Style</Label>
-                  <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(CURVE_STYLE_MAP).map(([key, { name, description }]) => (
-                        <SelectItem key={key} value={key}>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild><span>{name}</span></TooltipTrigger>
-                              <TooltipContent><p>{description}</p></TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Select value={config.dynamics.curveStyle || 'linear'} onValueChange={(v: CurveStyle) => handleCurveStyleChange(v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(CURVE_STYLE_MAP).map(([key, { name, description }]) => (
+                              <SelectItem key={key} value={key}>{name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Controls non-linear pacing along the journey path.</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
                 {config.dynamics.curveStyle === 'custom' && (
                   <div className="space-y-2">
                     <Label>Custom Bezier (P1, P2)</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 0, e.target.value)} className="min-h-10" />
-                      <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 1, e.target.value)} className="min-h-10" />
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[0] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 0, e.target.value)} onBlur={e => validateBezier('bezierLight', 0, e.target.value)} className={cn("min-h-10", bezierErrors.bezierLight[0] && "border-destructive")} />
+                            <Input type="number" step="0.05" min="0" max="1" value={config.dynamics.bezierLight?.[1] ?? 0.5} onChange={e => handleBezierChange('bezierLight', 1, e.target.value)} onBlur={e => validateBezier('bezierLight', 1, e.target.value)} className={cn("min-h-10", bezierErrors.bezierLight[1] && "border-destructive")} />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent><p>Bezier control points (0.0-1.0) for custom easing curve.</p></TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 )}
                 <div className="space-y-2">
                   <Label>Apply To</Label>
-                  <ToggleGroup type="multiple" value={config.dynamics.curveDimensions || ['all']} onValueChange={(v: CurveDimension[]) => handleDynamicsChange('curveDimensions', v.length > 0 ? v : ['all'])}>
-                    <ToggleGroupItem value="L">Lightness</ToggleGroupItem>
-                    <ToggleGroupItem value="C">Chroma</ToggleGroupItem>
-                    <ToggleGroupItem value="H">Hue</ToggleGroupItem>
-                    <ToggleGroupItem value="all">All</ToggleGroupItem>
+                  <ToggleGroup type="multiple" aria-label="Traversal dimensions" value={config.dynamics.curveDimensions || []} onValueChange={(v: CurveDimension[]) => {
+                    const dims = v.length > 0 ? v : [];
+                    handleDynamicsChange('curveDimensions', dims);
+                    if (dims.length === 0) {
+                      toast.warning('Select at least one dimension for curve application.');
+                    }
+                  }} className="flex flex-row flex-wrap gap-4 justify-start items-center">
+                    <ToggleGroupItem value="L" className="min-w-[100px] justify-center">Lightness</ToggleGroupItem>
+                    <ToggleGroupItem value="C" className="min-w-[100px] justify-center">Chroma</ToggleGroupItem>
+                    <ToggleGroupItem value="H" className="min-w-[100px] justify-center">Hue</ToggleGroupItem>
+                    <ToggleGroupItem value="all" className="min-w-[100px] justify-center">All</ToggleGroupItem>
                   </ToggleGroup>
                 </div>
                 <div className="space-y-2">
                   <Label>Strength ({(config.dynamics.curveStrength || 1).toFixed(2)})</Label>
-                  <Slider value={[config.dynamics.curveStrength || 1]} onValueChange={([v]) => handleDynamicsChange('curveStrength', v)} min={0} max={1} step={0.05} />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Slider value={[config.dynamics.curveStrength || 1]} onValueChange={([v]) => handleDynamicsChange('curveStrength', v)} min={0} max={1} step={0.05} />
+                      </TooltipTrigger>
+                      <TooltipContent><p>Intensity of curve effect (0=linear, 1=full).</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
               </AccordionContent>
             </motion.div>
