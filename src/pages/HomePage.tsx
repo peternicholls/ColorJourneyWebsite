@@ -102,7 +102,10 @@ export function HomePage() {
                 transition={{ duration: 0.6, ease: 'easeOut' }}
                 className="text-4xl md:text-5xl font-display font-bold text-balance leading-tight"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">
+                <span
+                  className="bg-clip-text text-transparent"
+                  style={{ backgroundImage: 'linear-gradient(135deg, #F38020 0%, #667EEA 50%, #14B8A6 100%)' }}
+                >
                   Color Journey Palette Engine
                 </span>
               </motion.h2>
@@ -122,7 +125,7 @@ export function HomePage() {
                 show: {
                   opacity: 1,
                   transition: {
-                    staggerChildren: 0.1,
+                    staggerChildren: 0.05,
                   },
                 },
               }}
@@ -167,7 +170,7 @@ export function HomePage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Built with ❤️ at Cloudflare. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). Copyright © 2025 Peter Nicholls.</p>
+          <p>Built with ��️ at Cloudflare. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">MIT License</a>). Copyright © 2025 Peter Nicholls.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

@@ -67,7 +67,7 @@ export function APIDocsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-8 md:py-10 lg:py-12">
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">API Documentation</h2>
+              <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #F38020 0%, #667EEA 50%, #14B8A6 100%)' }}>API Documentation</h2>
               <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto text-pretty">
                 Access <code className="font-mono text-sm bg-muted p-1 rounded-md">/api/color-journey</code> for dynamic, deterministic server-side palettes. Generate designer-intent color journeys programmatically.
               </p>
@@ -94,13 +94,13 @@ export function APIDocsPage() {
                 <div className="space-y-4">
                   <h3 className="text-2xl font-display font-semibold">Examples</h3>
                   <Accordion type="single" collapsible defaultValue="item-1">
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ delay: 0.1 }}>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
                       <AccordionItem value="item-1">
                         <AccordionTrigger>cURL</AccordionTrigger>
                         <AccordionContent><CodeBlock code={curlExample} language="bash" /></AccordionContent>
                       </AccordionItem>
                     </motion.div>
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} transition={{ delay: 0.2 }}>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
                       <AccordionItem value="item-2">
                         <AccordionTrigger>JavaScript Fetch</AccordionTrigger>
                         <AccordionContent><CodeBlock code={fetchExample} language="javascript" /></AccordionContent>
@@ -116,7 +116,7 @@ export function APIDocsPage() {
                 <CardHeader>
                   <CardTitle>Edge Benefits</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+                <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Server className="h-8 w-8 text-primary" />
                     <h4 className="font-semibold">In-Memory Cache</h4>
@@ -140,7 +140,7 @@ export function APIDocsPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright �� 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
+          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

@@ -100,7 +100,7 @@ export function PresetsExportPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-8 md:py-10 lg:py-12">
             <div className="text-center mb-12">
-              <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent bg-gradient-to-r from-[#F38020] via-[#667EEA] to-[#14B8A6]">Presets & Export</h2>
+              <h2 className="text-4xl md:text-5xl font-display font-bold text-balance bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #F38020 0%, #667EEA 50%, #14B8A6 100%)' }}>Presets & Export</h2>
               <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
                 Save, share, and export your favorite color journey configurations to use in any project.
               </p>
@@ -114,9 +114,9 @@ export function PresetsExportPage() {
                 <CardContent className="space-y-6">
                   <div>
                     <h3 className="text-sm font-semibold text-muted-foreground mb-2">Built-in Presets</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-4">
                       {BUILT_IN_PRESETS.map((preset) => (
-                        <motion.div key={preset.name} whileHover={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
+                        <motion.div key={preset.name} whileHover={{ scale: 1.02, y: -2 }} transition={{ type: "spring", stiffness: 300 }}>
                           <Card className="overflow-hidden">
                             <div className="h-16" style={{ background: `linear-gradient(to right, ${preset.config.anchors.join(', ')})` }} />
                             <CardHeader className="p-4">
@@ -178,7 +178,7 @@ export function PresetsExportPage() {
       </main>
       <footer className="border-t">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-sm text-muted-foreground">
-          <p>Copyright © 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
+          <p>Copyright �� 2025 Peter Nicholls. Powered by the OKLab color space (Björn Ottosson, <a href="/LICENSE" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent-foreground">MIT License</a>). This project is licensed under the MIT License.</p>
         </div>
       </footer>
       <Toaster richColors closeButton />

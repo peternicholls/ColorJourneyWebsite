@@ -33,7 +33,7 @@ function initWasm() {
                 return;
             }
             // 2. Dynamic import with an enforced timeout via Promise.race
-            const importPromise = import(/* @vite-ignore */ wasmUrl);
+            const importPromise = import(wasmUrl);
             const importTimeout = new Promise((_res, rej) => setTimeout(() => rej(new Error('WASM import timeout')), 5000));
             const mod = await Promise.race([importPromise, importTimeout]);
             const Module = (mod && (mod.default || mod)) as any;
