@@ -4,7 +4,7 @@
  */
  {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "color-journey-fj2qfta4speiuse4vmwf0",
+	"name": "colorjourney",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-04-24",
 	"assets": {
