@@ -3,8 +3,8 @@ name: Deploy Cloudflare Worker
 on:
   push:
     branches:
-      - main    # or 'master' if that's what you're using
-  workflow_dispatch:  # allows manual run from the Actions tab
+      - main       # change if you use a different default branch
+  workflow_dispatch: # allows manual runs from the Actions tab
 
 jobs:
   deploy:
@@ -17,15 +17,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'   # or 20/18 if you prefer
+          node-version: '22'   # 20 or 18 is also fine
 
       - name: Install Wrangler
-        run: |
-          npm install -g wrangler
+        run: npm install -g wrangler
+
+      # If your project needs node_modules for bundling, uncomment:
+      # - name: Install project dependencies
+      #   run: npm ci
 
       - name: Publish to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          wrangler deploy
+        run: wrangler deploy
