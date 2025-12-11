@@ -15,7 +15,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
   "routes": [
     {
-      "pattern": "colorjourney.com",
+      "pattern": "*.colorjourney.com",
       "custom_domain": true
     }
   ],
