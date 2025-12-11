@@ -13,6 +13,12 @@
  */
  {
 	"$schema": "node_modules/wrangler/config-schema.json",
+  "routes": [
+    {
+      "pattern": "colorjourney.com",
+      "custom_domain": true
+    }
+  ],
 	"name": "colorjourney",
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-04-24",
