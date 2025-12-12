@@ -26,4 +26,10 @@ double delta_e_ok(oklab c1, oklab c2);
 oklab lerp_oklab(oklab c1, oklab c2, double t);
 double cubic_bezier(double t, double p1, double p2);
 double get_easing(const char* style, double t, double p1, double p2);
+
+// Utility: Linear interpolation
+static inline double lerp(double a, double b, double t) {
+    return a * (1.0 - t) + b * t;
+}
+
 #endif // OKLAB_H

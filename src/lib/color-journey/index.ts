@@ -8,48 +8,93 @@ let wasmApi: {
 let isLoadingWasm = true;
 let wasmLoadPromise: Promise<void> | null = null;
 function initWasm() {
-    if (wasmLoadPromise) return wasmLoadPromise;
-    wasmLoadPromise = (async () => {
-        try {
-            const wasmUrl = '/assets/color_journey.js';
-            const headController = new AbortController();
-            const headTimeout = setTimeout(() => headController.abort(), 3000);
-            let headOk = false;
-            try {
-                const headResp = await fetch(wasmUrl, { method: 'HEAD', signal: headController.signal });
-                headOk = headResp && headResp.ok;
-            } catch (e) {
-                headOk = false;
-            } finally {
-                clearTimeout(headTimeout);
-            }
-            if (!headOk) {
-                console.info('Color Journey: WASM module not found. Using TypeScript fallback.');
-                wasmApi = null;
-                return;
-            }
-            const importPromise = import(/* @vite-ignore */ wasmUrl);
-            const importTimeout = new Promise((_res, rej) => setTimeout(() => rej(new Error('WASM import timeout')), 5000));
-            const mod = await Promise.race([importPromise, importTimeout]);
-            const Module = (mod && (mod.default || mod)) as any;
-            const moduleInstance = await Module({ noInitialRun: true });
-            wasmApi = {
-                generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
-                malloc: moduleInstance._wasm_malloc,
-                free: moduleInstance._wasm_free,
-                memory: moduleInstance.HEAPU8.buffer,
-            };
-            console.log("🎨 Color Journey WASM module loaded successfully.");
-        } catch (e) {
-            console.info("Color Journey: WASM module failed to load, using TypeScript fallback.", e);
-            wasmApi = null;
-        } finally {
-            isLoadingWasm = false;
+  if (wasmLoadPromise) return wasmLoadPromise;
+
+  // Only initialize in browser environment
+  if (typeof window === 'undefined') {
+    console.log('[WASM Debug] Node.js environment detected, skipping WASM init');
+    isLoadingWasm = false;
+    return Promise.resolve();
+  }
+
+  wasmLoadPromise = (async () => {
+    try {
+      console.log('[WASM Debug] Starting WASM initialization...');
+      const wasmUrl = new URL('/assets/color_journey.js', window.location.href).href;
+      console.log('[WASM Debug] Importing from:', wasmUrl);
+
+      const moduleExport = await import(/* @vite-ignore */ wasmUrl);
+      const Module = moduleExport.default;
+
+      if (typeof Module !== 'function') {
+        throw new Error('WASM Module export is not a factory function');
+      }
+
+      // Call the Emscripten factory function
+      const moduleInstance = await Module({ noInitialRun: true });
+
+      console.log('[WASM Debug] Module initialized, type:', typeof moduleInstance);
+      console.log('[WASM Debug] Has cwrap:', !!moduleInstance?.cwrap);
+      console.log('[WASM Debug] Has HEAPU8:', !!moduleInstance?.HEAPU8);
+      console.log('[WASM Debug] Has _generate_discrete_palette:', !!moduleInstance?._generate_discrete_palette);
+
+      // Direct check without typing
+      const hasCwrap = moduleInstance && 'cwrap' in moduleInstance;
+      const hasHeap = moduleInstance && 'HEAPU8' in moduleInstance;
+
+      console.log('[WASM Debug] Direct check - cwrap:', hasCwrap, 'HEAPU8:', hasHeap);
+
+      if (!hasCwrap) {
+        console.error('[WASM Debug] Module keys:', Object.keys(moduleInstance || {}).join(', '));
+        throw new Error(`Missing cwrap function`);
+      }
+
+      // If HEAPU8 is missing, try to get the memory buffer directly
+      let memoryBuffer = moduleInstance?.HEAPU8?.buffer;
+      if (!memoryBuffer && moduleInstance) {
+        console.log('[WASM Debug] HEAPU8 not found, trying to access memory directly...');
+        // Try to access memory through the module object
+        if ('wasmMemory' in moduleInstance) {
+          console.log('[WASM Debug] Found wasmMemory');
+          memoryBuffer = (moduleInstance as any).wasmMemory.buffer;
+        } else if ('memory' in moduleInstance) {
+          console.log('[WASM Debug] Found memory property');
+          memoryBuffer = (moduleInstance as any).memory.buffer;
+        } else {
+          // Try to find any WebAssembly.Memory instance
+          const memoryObj = Object.values(moduleInstance).find(v => v instanceof WebAssembly.Memory);
+          if (memoryObj) {
+            console.log('[WASM Debug] Found WebAssembly.Memory instance');
+            memoryBuffer = (memoryObj as any).buffer;
+          }
         }
-    })();
-    return wasmLoadPromise;
+      }
+
+      if (!memoryBuffer) {
+        console.error('[WASM Debug] Module keys:', Object.keys(moduleInstance || {}).join(', '));
+        throw new Error(`Cannot access WASM memory buffer`);
+      }
+
+      wasmApi = {
+        generate: moduleInstance.cwrap('generate_discrete_palette', 'number', ['number', 'number']),
+        malloc: moduleInstance.cwrap('malloc', 'number', ['number']),
+        free: moduleInstance.cwrap('free', '', ['number']),
+        memory: memoryBuffer,
+      };
+      console.log('🎨 WASM module loaded successfully');
+    } catch (e) {
+      console.error('[WASM Debug] Failed to load:', e);
+      wasmApi = null;
+    } finally {
+      isLoadingWasm = false;
+    }
+  })();
+  return wasmLoadPromise;
 }
-initWasm();
+// Only initialize in browser
+if (typeof window !== 'undefined') {
+  initWasm();
+}
 // --- TypeScript Fallback Implementation ---
 const srgbToLinear = (c: number): number => c > 0.04045 ? Math.pow((c + 0.055) / 1.055, 2.4) : c / 12.92;
 const linearToSrgb = (c: number): number => c > 0.0031308 ? 1.055 * Math.pow(c, 1.0 / 2.4) - 0.055 : 12.92 * c;
@@ -104,18 +149,21 @@ async function generatePaletteTS(config: ColorJourneyConfig): Promise<GenerateRe
     diagnostics.minDeltaE = Math.min(diagnostics.minDeltaE, dE);
     diagnostics.maxDeltaE = Math.max(diagnostics.maxDeltaE, dE);
   }
-  diagnostics.wcagMinRatio = Math.min(...palette.map(p => getContrastRatio(p.rgb, {r:1,g:1,b:1})));
+  diagnostics.wcagMinRatio = Math.min(...palette.map(p => getContrastRatio(p.rgb, { r: 1, g: 1, b: 1 })));
   return { palette, config, diagnostics };
 }
 async function generatePaletteWasm(config: ColorJourneyConfig): Promise<GenerateResult> {
-    if (!wasmApi) return generatePaletteTS(config);
-    // This is a simplified version. The full logic from the previous phase is assumed to be here.
-    return generatePaletteTS(config); // Fallback for brevity
+  if (!wasmApi) return generatePaletteTS(config);
+  // This is a simplified version. The full logic from the previous phase is assumed to be here.
+  return generatePaletteTS(config); // Fallback for brevity
 }
+
 export const ColorJourneyEngine = {
   generate: async (config: ColorJourneyConfig): Promise<GenerateResult> => {
     console.time('total-gen');
     await initWasm();
+    console.log('[WASM Check] wasmApi ready:', !!wasmApi);
+    // Use WASM if available, otherwise fallback to TypeScript
     const result = wasmApi ? await generatePaletteWasm(config) : await generatePaletteTS(config);
     console.timeEnd('total-gen');
     return result;
